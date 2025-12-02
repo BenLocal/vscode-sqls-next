@@ -1,21 +1,29 @@
 {
-  "name": "sqls-next",
-  "displayName": "vscode-sqls-next",
+  "name": "vscode-sqls-next",
+  "displayName": "sqls-next",
   "description": "vscode sqls next",
+  "publisher": "shiben",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.106.1"
+    "vscode": "^1.74.0"
   },
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "keywords": [
+    "SQL",
+    "Database"
+  ],
+  "activationEvents": [
+    "onLanguage:sql",
+    "workspaceContains:*.sql"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "sqls-next.helloWorld",
-        "title": "Hello World"
+        "command": "sqls-next.restartLanguageServer",
+        "title": "sqls-next: Restart Language Server"
       }
     ]
   },
@@ -31,17 +39,20 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.106.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
+    "@types/vscode": "^1.74.0",
     "@typescript-eslint/eslint-plugin": "^8.45.0",
     "@typescript-eslint/parser": "^8.45.0",
-    "eslint": "^9.36.0",
-    "typescript": "^5.9.3",
-    "ts-loader": "^9.5.4",
-    "webpack": "^5.102.0",
-    "webpack-cli": "^6.0.1",
     "@vscode/test-cli": "^0.0.11",
-    "@vscode/test-electron": "^2.5.2"
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.36.0",
+    "ts-loader": "^9.5.4",
+    "typescript": "^5.9.3",
+    "webpack": "^5.102.0",
+    "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
   }
 }
