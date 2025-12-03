@@ -156,18 +156,22 @@ export class SqlsClient {
 
   async stopServer() {
     if (!this._state || !this._client) {
+      this._outputChannel.appendLine("Server is not started");
       return;
     }
 
     try {
       await this._client.stop();
+      this._outputChannel.appendLine("Server stopped successfully");
     } finally {
       this._state = false;
+      this._outputChannel.appendLine("Server stopped");
     }
   }
 
   async restartServer() {
     if (!this._client) {
+      this._outputChannel.appendLine("Server is not initialized");
       return;
     }
 
@@ -175,6 +179,8 @@ export class SqlsClient {
       await this._client.restart();
     } catch (error) {
       this._state = false;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this._outputChannel.appendLine(`Server restarted failed: ${errorMsg}`);
       throw error;
     }
 
