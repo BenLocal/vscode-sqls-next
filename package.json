@@ -24,6 +24,24 @@
       {
         "command": "sqls-next.restartLanguageServer",
         "title": "sqls-next: Restart Language Server"
+      },
+      {
+        "command": "sqls-next.executeQuery",
+        "title": "sqls-next: Execute Query",
+        "icon": "$(play)"
+      },
+      {
+        "command": "sqls-next.showResultPanel",
+        "title": "sqls-next: Show Result Panel",
+        "icon": "$(table)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "sqls-next.executeQuery",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && editorLangId == sql"
       }
     ]
   },

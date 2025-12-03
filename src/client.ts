@@ -4,6 +4,8 @@ import * as vscode from "vscode";
 
 import * as lsp from "vscode-languageclient/node";
 import { InitializeOptions } from "./initialize";
+import { ResultPanel } from "./resultPanel";
+import { parseResultSmart } from "./resultParser";
 
 export class SqlsClient {
   private readonly _context: vscode.ExtensionContext;
@@ -14,6 +16,30 @@ export class SqlsClient {
   private _restartCount: number = 0;
   private readonly _maxRestartAttempts: number = 5;
 
+  // Helper to check if error is "command not found"
+  private isCommandNotFound(errorMsg: string): boolean {
+    return (
+      errorMsg.includes("not found") || errorMsg.includes("Unknown command")
+    );
+  }
+
+  // Helper to forward command to language server
+  private async forwardCommandToServer(
+    command: string,
+    args?: any[]
+  ): Promise<any> {
+    if (!this._client || !this._state) {
+      throw new Error("Language server not available");
+    }
+
+    const params: lsp.ExecuteCommandParams = {
+      command: command,
+      arguments: args || [],
+    };
+
+    return this._client.sendRequest("workspace/executeCommand", params);
+  }
+
   constructor(
     context: vscode.ExtensionContext,
     outputChannel: vscode.OutputChannel
@@ -22,8 +48,11 @@ export class SqlsClient {
     this._outputChannel = outputChannel;
   }
 
-  private createLanguageClient(initializeOptions: InitializeOptions): lsp.LanguageClient {
+  private createLanguageClient(
+    initializeOptions: InitializeOptions
+  ): lsp.LanguageClient {
     const ext = process.platform === "win32" ? ".exe" : "";
+    const perfix = process.platform === "win32" ? ".\\" : "./";
     const base = this.getBasePath();
     const cwd = path.join(this._context.extensionPath, "resources", base);
     const sqls = `sqls${ext}`;
@@ -39,7 +68,7 @@ export class SqlsClient {
     }
 
     const run: lsp.Executable = {
-      command: sqls,
+      command: `${perfix}${sqls}`,
       options: {
         env: {
           ...process.env,
@@ -96,9 +125,12 @@ export class SqlsClient {
           return { action: lsp.CloseAction.Restart };
         },
       },
+      progressOnInitialization: true,
       initializationOptions: initializeOptions,
       initializationFailedHandler: (error) => {
-        this._outputChannel.appendLine(`Language server initialization failed: ${error.message}`);
+        this._outputChannel.appendLine(
+          `Language server initialization failed: ${error.message}`
+        );
         return false;
       },
       middleware: {
@@ -127,7 +159,9 @@ export class SqlsClient {
             return result;
           } catch (error) {
             this._outputChannel.appendLine(
-              `[CodeLens] Exception: ${error instanceof Error ? error.message : String(error)}`
+              `[CodeLens] Exception: ${
+                error instanceof Error ? error.message : String(error)
+              }`
             );
             throw error;
           }
@@ -140,7 +174,201 @@ export class SqlsClient {
             return next(codeLens, token);
           } catch (error) {
             this._outputChannel.appendLine(
-              `[CodeLens] Resolve error: ${error instanceof Error ? error.message : String(error)}`
+              `[CodeLens] Resolve error: ${
+                error instanceof Error ? error.message : String(error)
+              }`
+            );
+            throw error;
+          }
+        },
+        // CodeAction support for sqls
+        provideCodeActions: (document, range, context, token, next) => {
+          this._outputChannel.appendLine(
+            `[CodeAction] Requesting CodeActions for ${document.uri.toString()} at range ${
+              range.start.line
+            }:${range.start.character}-${range.end.line}:${range.end.character}`
+          );
+          this._outputChannel.appendLine(
+            `[CodeAction] Context: ${
+              context.diagnostics.length
+            } diagnostics, only=${context.only?.value || "all"}`
+          );
+          try {
+            const result = next(document, range, context, token);
+            if (result instanceof Promise) {
+              return result
+                .then((codeActions: vscode.CodeAction[] | null | undefined) => {
+                  this._outputChannel.appendLine(
+                    `[CodeAction] Received ${
+                      codeActions?.length || 0
+                    } CodeActions`
+                  );
+                  if (codeActions && codeActions.length > 0) {
+                    codeActions.forEach(
+                      (action: vscode.CodeAction, index: number) => {
+                        this._outputChannel.appendLine(
+                          `[CodeAction] ${index + 1}. ${action.title} (kind: ${
+                            action.kind?.value || "none"
+                          })`
+                        );
+                      }
+                    );
+                  }
+                  return codeActions;
+                })
+                .catch((error) => {
+                  this._outputChannel.appendLine(
+                    `[CodeAction] Error: ${error.message || error}`
+                  );
+                  throw error;
+                });
+            }
+            return result;
+          } catch (error) {
+            this._outputChannel.appendLine(
+              `[CodeAction] Exception: ${
+                error instanceof Error ? error.message : String(error)
+              }`
+            );
+            throw error;
+          }
+        },
+        resolveCodeAction: (codeAction, token, next) => {
+          this._outputChannel.appendLine(
+            `[CodeAction] Resolving CodeAction: ${codeAction.title}`
+          );
+          try {
+            // If the CodeAction has a command, we need to ensure it can be executed
+            // Server-side commands will be handled by the command handler in extension.ts
+            if (codeAction.command) {
+              this._outputChannel.appendLine(
+                `[CodeAction] CodeAction has command: ${codeAction.command.command}`
+              );
+            }
+            return next(codeAction, token);
+          } catch (error) {
+            this._outputChannel.appendLine(
+              `[CodeAction] Resolve error: ${
+                error instanceof Error ? error.message : String(error)
+              }`
+            );
+            throw error;
+          }
+        },
+        // Handle workspace/executeCommand requests from the language server
+        // Also handles commands from CodeAction and CodeLens
+        executeCommand: (command, args, next) => {
+          this._outputChannel.appendLine(
+            `[ExecuteCommand] Requested to execute command: ${command}`
+          );
+          if (args && args.length > 0) {
+            this._outputChannel.appendLine(
+              `[ExecuteCommand] Arguments: ${JSON.stringify(args)}`
+            );
+          }
+
+          if (command === "executeQuery") {
+            ResultPanel.createOrShow(this._context.extensionUri);
+            ResultPanel.getCurrentPanel()?.displayLoading();
+          }
+
+          // Try to execute the command using VS Code's command system
+          // If it fails (command not found), forward it to the language server
+          try {
+            const result = next(command, args);
+            if (result instanceof Promise) {
+              return result
+                .then((value) => {
+                  this._outputChannel.appendLine(
+                    `[ExecuteCommand] Command executed successfully via VS Code: ${command}`
+                  );
+                  if (command === "executeQuery") {
+                    // Parse and display result
+                    const parsedResult = parseResultSmart(value);
+                    ResultPanel.getCurrentPanel()?.displayResults(parsedResult);
+                  }
+                  return value;
+                })
+                .catch(async (error) => {
+                  const errorMsg =
+                    error instanceof Error ? error.message : String(error);
+
+                  if (this.isCommandNotFound(errorMsg)) {
+                    this._outputChannel.appendLine(
+                      `[ExecuteCommand] Command not found in VS Code, forwarding to language server: ${command}`
+                    );
+                    try {
+                      const serverResult = await this.forwardCommandToServer(
+                        command,
+                        args
+                      );
+                      this._outputChannel.appendLine(
+                        `[ExecuteCommand] Command executed successfully on server: ${command}`
+                      );
+                      // Log server result
+                      if (serverResult !== null && serverResult !== undefined) {
+                        try {
+                          const resultStr = JSON.stringify(serverResult);
+                          if (resultStr.length > 500) {
+                            this._outputChannel.appendLine(
+                              `[ExecuteCommand] Server result (truncated): ${resultStr.substring(
+                                0,
+                                500
+                              )}...`
+                            );
+                          } else {
+                            this._outputChannel.appendLine(
+                              `[ExecuteCommand] Server result: ${resultStr}`
+                            );
+                          }
+                        } catch {
+                          this._outputChannel.appendLine(
+                            `[ExecuteCommand] Server result: [Object]`
+                          );
+                        }
+                      }
+
+                      // Display result in panel for executeQuery command
+                      if (command === "executeQuery") {
+                        const parsedResult = parseResultSmart(serverResult);
+                        ResultPanel.getCurrentPanel()?.displayResults(
+                          parsedResult
+                        );
+                      }
+
+                      return serverResult;
+                    } catch (serverError) {
+                      const serverErrorMsg =
+                        serverError instanceof Error
+                          ? serverError.message
+                          : String(serverError);
+                      this._outputChannel.appendLine(
+                        `[ExecuteCommand] Error executing command on server ${command}: ${serverErrorMsg}`
+                      );
+                      throw serverError;
+                    }
+                  }
+
+                  this._outputChannel.appendLine(
+                    `[ExecuteCommand] Error executing command ${command}: ${errorMsg}`
+                  );
+                  throw error;
+                });
+            }
+            return result;
+          } catch (error) {
+            const errorMsg =
+              error instanceof Error ? error.message : String(error);
+
+            if (this.isCommandNotFound(errorMsg)) {
+              this._outputChannel.appendLine(
+                `[ExecuteCommand] Command not found in VS Code, forwarding to language server: ${command}`
+              );
+              return this.forwardCommandToServer(command, args);
+            }
+
+            this._outputChannel.appendLine(
+              `[ExecuteCommand] Error executing command ${command}: ${errorMsg}`
             );
             throw error;
           }
@@ -151,8 +379,7 @@ export class SqlsClient {
       "sqls-next",
       "Sqls Next",
       serverOptions,
-      clientOptions,
-      true
+      clientOptions
     );
   }
 
@@ -181,7 +408,9 @@ export class SqlsClient {
     if (!this._client) {
       this._client = this.createLanguageClient(initializeOptions);
       this._client.onDidChangeState((event) => {
-        this._outputChannel.appendLine(`Language server state changed to: ${event.newState}`);
+        this._outputChannel.appendLine(
+          `Language server state changed to: ${event.newState}`
+        );
       });
     }
 
@@ -240,5 +469,88 @@ export class SqlsClient {
     }
 
     this._state = true;
+  }
+
+  /**
+   * Execute a command on the language server and get the result
+   * This is a convenience method that directly calls workspace/executeCommand
+   * @param command The command identifier (e.g., "executeQuery")
+   * @param args Optional arguments to pass to the command
+   * @returns The result from the language server
+   */
+  async executeServerCommand(command: string, args?: any[]): Promise<any> {
+    if (!this._client || !this._state) {
+      const errorMsg = "Language server is not started";
+      this._outputChannel.appendLine(`[ExecuteServerCommand] ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
+
+    this._outputChannel.appendLine(
+      `[ExecuteServerCommand] Executing server command: ${command}`
+    );
+    if (args && args.length > 0) {
+      this._outputChannel.appendLine(
+        `[ExecuteServerCommand] Arguments: ${JSON.stringify(args)}`
+      );
+    }
+
+    try {
+      // Direct call to language server via workspace/executeCommand
+      const result = await this.forwardCommandToServer(command, args);
+
+      this._outputChannel.appendLine(
+        `[ExecuteServerCommand] Command executed successfully: ${command}`
+      );
+
+      // Log result
+      if (result !== null && result !== undefined) {
+        try {
+          const resultStr = JSON.stringify(result);
+          if (resultStr.length > 500) {
+            this._outputChannel.appendLine(
+              `[ExecuteServerCommand] Result (truncated): ${resultStr.substring(
+                0,
+                500
+              )}...`
+            );
+          } else {
+            this._outputChannel.appendLine(
+              `[ExecuteServerCommand] Result: ${resultStr}`
+            );
+          }
+        } catch {
+          this._outputChannel.appendLine(
+            `[ExecuteServerCommand] Result: [Complex Object]`
+          );
+        }
+      }
+
+      return result;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this._outputChannel.appendLine(
+        `[ExecuteServerCommand] Error executing command ${command}: ${errorMsg}`
+      );
+      vscode.window.showErrorMessage(
+        `Failed to execute server command ${command}: ${errorMsg}`
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Get the language client instance
+   * @returns The language client or undefined if not initialized
+   */
+  getClient(): lsp.LanguageClient | undefined {
+    return this._client;
+  }
+
+  /**
+   * Check if the language server is running
+   * @returns True if the server is started and ready
+   */
+  isServerRunning(): boolean {
+    return this._state && this._client !== undefined;
   }
 }

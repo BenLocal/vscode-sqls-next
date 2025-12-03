@@ -21,7 +21,7 @@ export async function activate(context: vscode.ExtensionContext) {
     connectionConfig: {
       alias: "default",
       driver: "mysql",
-      dataSourceName: "",
+      dataSourceName: "root:root@tcp(localhost:3306)/test",
     },
   };
   startLanguageServer(initializationOptions);
