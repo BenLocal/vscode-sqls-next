@@ -3,11 +3,13 @@ import * as fs from "node:fs";
 import * as vscode from "vscode";
 
 import * as lsp from "vscode-languageclient/node";
+import { InitializeOptions } from "./initialize";
 
 export class SqlsClient {
   private readonly _context: vscode.ExtensionContext;
-  private readonly _client: lsp.LanguageClient | undefined;
   private readonly _outputChannel: vscode.OutputChannel;
+
+  private _client: lsp.LanguageClient | undefined;
   private _state: boolean = false;
   private _restartCount: number = 0;
   private readonly _maxRestartAttempts: number = 5;
@@ -18,10 +20,9 @@ export class SqlsClient {
   ) {
     this._context = context;
     this._outputChannel = outputChannel;
-    this._client = this.createClient();
   }
 
-  private createClient(): lsp.LanguageClient {
+  private createLanguageClient(initializeOptions: InitializeOptions): lsp.LanguageClient {
     const ext = process.platform === "win32" ? ".exe" : "";
     const base = this.getBasePath();
     const cwd = path.join(this._context.extensionPath, "resources", base);
@@ -45,6 +46,7 @@ export class SqlsClient {
         },
         cwd: cwd,
       },
+      args: ["-t"],
       // sqls has no -stdio option, so we use the default transport
       // transport: lsp.TransportKind.stdio,
     };
@@ -94,6 +96,56 @@ export class SqlsClient {
           return { action: lsp.CloseAction.Restart };
         },
       },
+      initializationOptions: initializeOptions,
+      initializationFailedHandler: (error) => {
+        this._outputChannel.appendLine(`Language server initialization failed: ${error.message}`);
+        return false;
+      },
+      middleware: {
+        // CodeLens support for sqls
+        provideCodeLenses: (document, token, next) => {
+          this._outputChannel.appendLine(
+            `[CodeLens] Requesting CodeLenses for ${document.uri.toString()}`
+          );
+          try {
+            const result = next(document, token);
+            if (result instanceof Promise) {
+              return result
+                .then((codeLenses) => {
+                  this._outputChannel.appendLine(
+                    `[CodeLens] Received ${codeLenses?.length || 0} CodeLenses`
+                  );
+                  return codeLenses;
+                })
+                .catch((error) => {
+                  this._outputChannel.appendLine(
+                    `[CodeLens] Error: ${error.message || error}`
+                  );
+                  throw error;
+                });
+            }
+            return result;
+          } catch (error) {
+            this._outputChannel.appendLine(
+              `[CodeLens] Exception: ${error instanceof Error ? error.message : String(error)}`
+            );
+            throw error;
+          }
+        },
+        resolveCodeLens: (codeLens, token, next) => {
+          this._outputChannel.appendLine(
+            `[CodeLens] Resolving CodeLens at line ${codeLens.range.start.line}`
+          );
+          try {
+            return next(codeLens, token);
+          } catch (error) {
+            this._outputChannel.appendLine(
+              `[CodeLens] Resolve error: ${error instanceof Error ? error.message : String(error)}`
+            );
+            throw error;
+          }
+        },
+      },
     };
     return new lsp.LanguageClient(
       "sqls-next",
@@ -112,7 +164,7 @@ export class SqlsClient {
 
     let os = "linux";
     if (process.platform === "win32") {
-      os = "windows";
+      os = "win";
     } else if (process.platform === "darwin") {
       os = "darwin";
     }
@@ -120,16 +172,17 @@ export class SqlsClient {
     return `${os}_${arch}`;
   }
 
-  async startServer() {
+  async startServer(initializeOptions: InitializeOptions) {
     if (this._state) {
       this._outputChannel.appendLine("Server is already started");
       return;
     }
 
     if (!this._client) {
-      const errorMsg = "Language client is not initialized";
-      this._outputChannel.appendLine(errorMsg);
-      throw new Error(errorMsg);
+      this._client = this.createLanguageClient(initializeOptions);
+      this._client.onDidChangeState((event) => {
+        this._outputChannel.appendLine(`Language server state changed to: ${event.newState}`);
+      });
     }
 
     try {
@@ -165,13 +218,15 @@ export class SqlsClient {
       this._outputChannel.appendLine("Server stopped successfully");
     } finally {
       this._state = false;
+      this._client = undefined;
       this._outputChannel.appendLine("Server stopped");
     }
   }
 
-  async restartServer() {
+  async restartServer(initializeOptions: InitializeOptions) {
     if (!this._client) {
       this._outputChannel.appendLine("Server is not initialized");
+      await this.startServer(initializeOptions);
       return;
     }
 

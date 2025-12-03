@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { SqlsClient } from "./client";
+import { InitializeOptions } from "./initialize";
 
 const clientTraceName = "Sqls Next Client";
 
@@ -15,7 +16,15 @@ export async function activate(context: vscode.ExtensionContext) {
     restartLanguageServer
   );
   context.subscriptions.push(restartLanguageServerCommand);
-  startLanguageServer();
+
+  const initializationOptions: InitializeOptions = {
+    connectionConfig: {
+      alias: "default",
+      driver: "mysql",
+      dataSourceName: "",
+    },
+  };
+  startLanguageServer(initializationOptions);
 }
 
 export function deactivate() {
@@ -23,10 +32,10 @@ export function deactivate() {
   client = undefined;
 }
 
-async function startLanguageServer() {
-  await client?.startServer();
+async function startLanguageServer(initializeOptions: InitializeOptions) {
+  await client?.startServer(initializeOptions);
 }
 
-async function restartLanguageServer() {
-  await client?.restartServer();
+async function restartLanguageServer(initializeOptions: InitializeOptions) {
+  await client?.restartServer(initializeOptions);
 }
