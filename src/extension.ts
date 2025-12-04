@@ -1,30 +1,18 @@
 import * as vscode from "vscode";
-import { SqlsClient } from "./client";
+import { SqlsClient } from "./lspClient";
 import { InitializeOptions } from "./initialize";
 import { ResultPanel } from "./resultPanel";
 
 const clientTraceName = "Sqls Next Client";
+const SqlsResultPanelViewType = "sqlsResultPanel";
 
-let client: SqlsClient | undefined;
+let lspClient: SqlsClient | undefined;
 let traceOutputChannel: vscode.OutputChannel | undefined;
+let resultPanel: ResultPanel | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
-  traceOutputChannel = vscode.window.createOutputChannel(clientTraceName);
-  client = new SqlsClient(context, traceOutputChannel);
-
-  // Register webview view provider for result panel
-  const resultPanel = ResultPanel.createOrShow(context.extensionUri);
-  const provider = vscode.window.registerWebviewViewProvider(
-    ResultPanel.viewType,
-    resultPanel
-  );
-  context.subscriptions.push(provider);
-
-  const restartLanguageServerCommand = vscode.commands.registerCommand(
-    "sqls-next.restartLanguageServer",
-    restartLanguageServer
-  );
-  context.subscriptions.push(restartLanguageServerCommand);
+  createResultPanel(context);
+  createLspClient(context);
 
   const initializationOptions: InitializeOptions = {
     connectionConfig: {
@@ -37,15 +25,40 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-  client?.stopServer();
-  client = undefined;
-  ResultPanel.getCurrentPanel()?.dispose();
+  lspClient?.stopServer();
+  lspClient = undefined;
+  resultPanel?.dispose();
 }
 
 async function startLanguageServer(initializeOptions: InitializeOptions) {
-  await client?.startServer(initializeOptions);
+  await lspClient?.startServer(initializeOptions);
 }
 
 async function restartLanguageServer(initializeOptions: InitializeOptions) {
-  await client?.restartServer(initializeOptions);
+  await lspClient?.restartServer(initializeOptions);
+}
+
+async function createResultPanel(context: vscode.ExtensionContext) {
+  resultPanel = new ResultPanel(context.extensionUri, SqlsResultPanelViewType);
+  const provider = vscode.window.registerWebviewViewProvider(
+    SqlsResultPanelViewType,
+    resultPanel as vscode.WebviewViewProvider,
+    {
+      webviewOptions: {
+        retainContextWhenHidden: true,
+      },
+    }
+  );
+  context.subscriptions.push(provider);
+}
+
+async function createLspClient(context: vscode.ExtensionContext) {
+  traceOutputChannel = vscode.window.createOutputChannel(clientTraceName);
+  lspClient = new SqlsClient(context, traceOutputChannel, resultPanel!);
+
+  const restartLanguageServerCommand = vscode.commands.registerCommand(
+    "sqls-next.restartLanguageServer",
+    restartLanguageServer
+  );
+  context.subscriptions.push(restartLanguageServerCommand);
 }

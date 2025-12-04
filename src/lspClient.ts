@@ -10,6 +10,7 @@ import { parseResultSmart } from "./resultParser";
 export class SqlsClient {
   private readonly _context: vscode.ExtensionContext;
   private readonly _outputChannel: vscode.OutputChannel;
+  private readonly _resultPanel: ResultPanel | undefined;
 
   private _client: lsp.LanguageClient | undefined;
   private _state: boolean = false;
@@ -42,10 +43,12 @@ export class SqlsClient {
 
   constructor(
     context: vscode.ExtensionContext,
-    outputChannel: vscode.OutputChannel
+    outputChannel: vscode.OutputChannel,
+    resultPanel: ResultPanel
   ) {
     this._context = context;
     this._outputChannel = outputChannel;
+    this._resultPanel = resultPanel;
   }
 
   private createLanguageClient(
@@ -257,7 +260,7 @@ export class SqlsClient {
         },
         // Handle workspace/executeCommand requests from the language server
         // Also handles commands from CodeAction and CodeLens
-        executeCommand: (command, args, next) => {
+        executeCommand: async (command, args, next) => {
           this._outputChannel.appendLine(
             `[ExecuteCommand] Requested to execute command: ${command}`
           );
@@ -268,92 +271,20 @@ export class SqlsClient {
           }
 
           if (command === "executeQuery") {
-            ResultPanel.createOrShow(this._context.extensionUri);
-            ResultPanel.getCurrentPanel()?.displayLoading();
+            await this._resultPanel?.displayLoading();
           }
 
           // Try to execute the command using VS Code's command system
           // If it fails (command not found), forward it to the language server
           try {
-            const result = next(command, args);
-            if (result instanceof Promise) {
-              return result
-                .then((value) => {
-                  this._outputChannel.appendLine(
-                    `[ExecuteCommand] Command executed successfully via VS Code: ${command}`
-                  );
-                  if (command === "executeQuery") {
-                    // Parse and display result
-                    const parsedResult = parseResultSmart(value);
-                    ResultPanel.getCurrentPanel()?.displayResults(parsedResult);
-                  }
-                  return value;
-                })
-                .catch(async (error) => {
-                  const errorMsg =
-                    error instanceof Error ? error.message : String(error);
-
-                  if (this.isCommandNotFound(errorMsg)) {
-                    this._outputChannel.appendLine(
-                      `[ExecuteCommand] Command not found in VS Code, forwarding to language server: ${command}`
-                    );
-                    try {
-                      const serverResult = await this.forwardCommandToServer(
-                        command,
-                        args
-                      );
-                      this._outputChannel.appendLine(
-                        `[ExecuteCommand] Command executed successfully on server: ${command}`
-                      );
-                      // Log server result
-                      if (serverResult !== null && serverResult !== undefined) {
-                        try {
-                          const resultStr = JSON.stringify(serverResult);
-                          if (resultStr.length > 500) {
-                            this._outputChannel.appendLine(
-                              `[ExecuteCommand] Server result (truncated): ${resultStr.substring(
-                                0,
-                                500
-                              )}...`
-                            );
-                          } else {
-                            this._outputChannel.appendLine(
-                              `[ExecuteCommand] Server result: ${resultStr}`
-                            );
-                          }
-                        } catch {
-                          this._outputChannel.appendLine(
-                            `[ExecuteCommand] Server result: [Object]`
-                          );
-                        }
-                      }
-
-                      // Display result in panel for executeQuery command
-                      if (command === "executeQuery") {
-                        const parsedResult = parseResultSmart(serverResult);
-                        ResultPanel.getCurrentPanel()?.displayResults(
-                          parsedResult
-                        );
-                      }
-
-                      return serverResult;
-                    } catch (serverError) {
-                      const serverErrorMsg =
-                        serverError instanceof Error
-                          ? serverError.message
-                          : String(serverError);
-                      this._outputChannel.appendLine(
-                        `[ExecuteCommand] Error executing command on server ${command}: ${serverErrorMsg}`
-                      );
-                      throw serverError;
-                    }
-                  }
-
-                  this._outputChannel.appendLine(
-                    `[ExecuteCommand] Error executing command ${command}: ${errorMsg}`
-                  );
-                  throw error;
-                });
+            const result = await next(command, args);
+            this._outputChannel.appendLine(
+              `[ExecuteCommand] Command executed successfully via VS Code: ${command}`
+            );
+            if (command === "executeQuery") {
+              // Parse and display result
+              const parsedResult = parseResultSmart(result);
+              this._resultPanel?.displayResults(parsedResult);
             }
             return result;
           } catch (error) {
@@ -370,6 +301,7 @@ export class SqlsClient {
             this._outputChannel.appendLine(
               `[ExecuteCommand] Error executing command ${command}: ${errorMsg}`
             );
+            await this._resultPanel?.displayError(errorMsg);
             throw error;
           }
         },

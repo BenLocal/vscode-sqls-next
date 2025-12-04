@@ -9,31 +9,19 @@ export interface QueryResult {
 }
 
 export class ResultPanel implements vscode.WebviewViewProvider {
-  private static currentPanel: ResultPanel | undefined;
+  private readonly _viewType: string;
   private _view?: vscode.WebviewView;
   private readonly _extensionUri: vscode.Uri;
   private readonly _disposables: vscode.Disposable[] = [];
 
-  public static readonly viewType = "sqlsResultPanel";
-
-  constructor(extensionUri: vscode.Uri) {
+  constructor(extensionUri: vscode.Uri, viewType: string) {
     this._extensionUri = extensionUri;
+    this._viewType = viewType;
   }
 
-  public static getCurrentPanel(): ResultPanel | undefined {
-    return ResultPanel.currentPanel;
-  }
-
-  public static createOrShow(extensionUri: vscode.Uri) {
-    // If we already have a panel, show it
-    if (ResultPanel.currentPanel) {
-      ResultPanel.currentPanel._view?.show(true);
-      return ResultPanel.currentPanel;
-    }
-
-    // Otherwise, create a new panel
-    ResultPanel.currentPanel = new ResultPanel(extensionUri);
-    return ResultPanel.currentPanel;
+  private async show() {
+    await vscode.commands.executeCommand(this._viewType + ".focus");
+    this._view?.show(true);
   }
 
   public resolveWebviewView(
@@ -68,38 +56,38 @@ export class ResultPanel implements vscode.WebviewViewProvider {
     );
   }
 
-  public displayResults(results: QueryResult) {
+  public async displayResults(results: QueryResult) {
+    await this.show();
     if (this._view) {
       this._view.webview.postMessage({
         type: "displayResults",
         data: results,
       });
-      this._view.show(true);
     }
   }
 
-  public displayError(error: string) {
+  public async displayError(error: string) {
+    await this.show();
     if (this._view) {
       this._view.webview.postMessage({
         type: "displayError",
         error: error,
       });
-      this._view.show(true);
     }
   }
 
-  public displayLoading(message: string = "Executing query...") {
+  public async displayLoading(message: string = "Executing query...") {
+    await this.show();
     if (this._view) {
       this._view.webview.postMessage({
         type: "displayLoading",
         message: message,
       });
-      this._view.show(true);
     }
   }
 
   public dispose() {
-    ResultPanel.currentPanel = undefined;
+    this._view = undefined;
 
     while (this._disposables.length) {
       const disposable = this._disposables.pop();
@@ -156,7 +144,7 @@ export class ResultPanel implements vscode.WebviewViewProvider {
       });
   }
 
-  private _getHtmlForWebview(webview: vscode.Webview) {
+  private _getHtmlForWebview(_webview: vscode.Webview) {
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
