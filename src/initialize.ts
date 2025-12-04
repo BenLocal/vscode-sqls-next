@@ -1,6 +1,3 @@
-import * as vscode from "vscode";
-import * as lsp from "vscode-languageclient/node";
-
 export interface InitializeOptions {
   connectionConfig: ConnectionConfig;
 }
