@@ -8,24 +8,16 @@ export interface QueryResult {
   executionTime?: number;
 }
 
-export class ResultPanel {
+export class ResultPanel implements vscode.WebviewViewProvider {
   private static currentPanel: ResultPanel | undefined;
-  private readonly _panel: vscode.WebviewPanel;
+  private _view?: vscode.WebviewView;
   private readonly _extensionUri: vscode.Uri;
   private readonly _disposables: vscode.Disposable[] = [];
 
   public static readonly viewType = "sqlsResultPanel";
 
-  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
-    this._panel = panel;
+  constructor(extensionUri: vscode.Uri) {
     this._extensionUri = extensionUri;
-
-    // Set the webview's initial html content
-    this._update();
-
-    // Listen for when the panel is disposed
-    // This happens when the user closes the panel or when the panel is closed programmatically
-    this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
   }
 
   public static getCurrentPanel(): ResultPanel | undefined {
@@ -33,74 +25,34 @@ export class ResultPanel {
   }
 
   public static createOrShow(extensionUri: vscode.Uri) {
-    const column = vscode.ViewColumn.Two;
-
     // If we already have a panel, show it
     if (ResultPanel.currentPanel) {
-      ResultPanel.currentPanel._panel.reveal(column);
+      ResultPanel.currentPanel._view?.show(true);
       return ResultPanel.currentPanel;
     }
 
     // Otherwise, create a new panel
-    const panel = vscode.window.createWebviewPanel(
-      ResultPanel.viewType,
-      "SQL Results",
-      column,
-      {
-        // Enable javascript in the webview
-        enableScripts: true,
-        // And restrict the webview to only loading content from our extension's directory
-        localResourceRoots: [extensionUri],
-        // Retain context when hidden
-        retainContextWhenHidden: true,
-      }
-    );
-
-    ResultPanel.currentPanel = new ResultPanel(panel, extensionUri);
+    ResultPanel.currentPanel = new ResultPanel(extensionUri);
     return ResultPanel.currentPanel;
   }
 
-  public displayResults(results: QueryResult) {
-    this._panel.webview.postMessage({
-      type: "displayResults",
-      data: results,
-    });
-  }
+  public resolveWebviewView(
+    webviewView: vscode.WebviewView,
+    _context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken
+  ) {
+    this._view = webviewView;
 
-  public displayError(error: string) {
-    this._panel.webview.postMessage({
-      type: "displayError",
-      error: error,
-    });
-  }
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [this._extensionUri],
+    };
 
-  public displayLoading(message: string = "Executing query...") {
-    this._panel.webview.postMessage({
-      type: "displayLoading",
-      message: message,
-    });
-  }
-
-  public dispose() {
-    ResultPanel.currentPanel = undefined;
-
-    // Clean up our resources
-    this._panel.dispose();
-
-    while (this._disposables.length) {
-      const disposable = this._disposables.pop();
-      if (disposable) {
-        disposable.dispose();
-      }
-    }
-  }
-
-  private _update() {
-    const webview = this._panel.webview;
-    this._panel.webview.html = this._getHtmlForWebview(webview);
+    // Set the webview's initial html content
+    webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
     // Handle messages from the webview
-    this._panel.webview.onDidReceiveMessage(
+    webviewView.webview.onDidReceiveMessage(
       (message) => {
         switch (message.type) {
           case "ready":
@@ -116,8 +68,49 @@ export class ResultPanel {
     );
   }
 
+  public displayResults(results: QueryResult) {
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: "displayResults",
+        data: results,
+      });
+      this._view.show(true);
+    }
+  }
+
+  public displayError(error: string) {
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: "displayError",
+        error: error,
+      });
+      this._view.show(true);
+    }
+  }
+
+  public displayLoading(message: string = "Executing query...") {
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: "displayLoading",
+        message: message,
+      });
+      this._view.show(true);
+    }
+  }
+
+  public dispose() {
+    ResultPanel.currentPanel = undefined;
+
+    while (this._disposables.length) {
+      const disposable = this._disposables.pop();
+      if (disposable) {
+        disposable.dispose();
+      }
+    }
+  }
+
   private _exportToCsv(data: QueryResult) {
-    if (!data || !data.rows || data.rows.length === 0) {
+    if (!data?.rows || data.rows.length === 0) {
       vscode.window.showWarningMessage("No data to export");
       return;
     }
@@ -135,7 +128,7 @@ export class ResultPanel {
             }
             const stringValue = String(value);
             if (stringValue.includes(",") || stringValue.includes('"')) {
-              return `"${stringValue.replace(/"/g, '""')}"`;
+              return `"${stringValue.replaceAll('"', '""')}"`;
             }
             return stringValue;
           })

@@ -20,6 +20,25 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "views": {
+      "sqls-panel": [
+        {
+          "type": "webview",
+          "id": "sqlsResultPanel",
+          "name": "Sqls",
+          "when": "true"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "sqls-panel",
+          "title": "Sqls",
+          "icon": "$(table)"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "sqls-next.restartLanguageServer",

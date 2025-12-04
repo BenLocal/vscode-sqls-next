@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { SqlsClient } from "./client";
 import { InitializeOptions } from "./initialize";
+import { ResultPanel } from "./resultPanel";
 
 const clientTraceName = "Sqls Next Client";
 
@@ -10,6 +11,14 @@ let traceOutputChannel: vscode.OutputChannel | undefined;
 export async function activate(context: vscode.ExtensionContext) {
   traceOutputChannel = vscode.window.createOutputChannel(clientTraceName);
   client = new SqlsClient(context, traceOutputChannel);
+
+  // Register webview view provider for result panel
+  const resultPanel = ResultPanel.createOrShow(context.extensionUri);
+  const provider = vscode.window.registerWebviewViewProvider(
+    ResultPanel.viewType,
+    resultPanel
+  );
+  context.subscriptions.push(provider);
 
   const restartLanguageServerCommand = vscode.commands.registerCommand(
     "sqls-next.restartLanguageServer",
@@ -21,7 +30,7 @@ export async function activate(context: vscode.ExtensionContext) {
     connectionConfig: {
       alias: "default",
       driver: "mysql",
-      dataSourceName: "root:root@tcp(localhost:3306)/test",
+      dataSourceName: "root:root@tcp(127.0.0.1:3306)/test",
     },
   };
   startLanguageServer(initializationOptions);
