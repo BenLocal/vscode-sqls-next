@@ -39,6 +39,7 @@ export async function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
   client?.stopServer();
   client = undefined;
+  ResultPanel.getCurrentPanel()?.dispose();
 }
 
 async function startLanguageServer(initializeOptions: InitializeOptions) {
