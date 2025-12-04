@@ -1,4 +1,4 @@
-import { parseAsciiTableResult, parseResultSmart, isAsciiTable } from "./resultParser";
+import { parseAsciiTableResult, parseResultSmart, isAsciiTable } from "../resultParser";
 
 // Test data
 const testAsciiTable = `+----+------+-----+--------+--------+-------------+
