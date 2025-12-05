@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as vscode from "vscode";
 
 import * as lsp from "vscode-languageclient/node";
-import { InitializeOptions } from "./initialize";
+import { DidChangeConfigurationParams, InitializeOptions } from "./lspTypes";
 import { ResultPanel } from "./resultPanel";
 import { parseResultSmart } from "./resultParser";
 
@@ -162,8 +162,7 @@ export class SqlsClient {
             return result;
           } catch (error) {
             this._outputChannel.appendLine(
-              `[CodeLens] Exception: ${
-                error instanceof Error ? error.message : String(error)
+              `[CodeLens] Exception: ${error instanceof Error ? error.message : String(error)
               }`
             );
             throw error;
@@ -177,8 +176,7 @@ export class SqlsClient {
             return next(codeLens, token);
           } catch (error) {
             this._outputChannel.appendLine(
-              `[CodeLens] Resolve error: ${
-                error instanceof Error ? error.message : String(error)
+              `[CodeLens] Resolve error: ${error instanceof Error ? error.message : String(error)
               }`
             );
             throw error;
@@ -187,13 +185,11 @@ export class SqlsClient {
         // CodeAction support for sqls
         provideCodeActions: (document, range, context, token, next) => {
           this._outputChannel.appendLine(
-            `[CodeAction] Requesting CodeActions for ${document.uri.toString()} at range ${
-              range.start.line
+            `[CodeAction] Requesting CodeActions for ${document.uri.toString()} at range ${range.start.line
             }:${range.start.character}-${range.end.line}:${range.end.character}`
           );
           this._outputChannel.appendLine(
-            `[CodeAction] Context: ${
-              context.diagnostics.length
+            `[CodeAction] Context: ${context.diagnostics.length
             } diagnostics, only=${context.only?.value || "all"}`
           );
           try {
@@ -202,16 +198,14 @@ export class SqlsClient {
               return result
                 .then((codeActions: vscode.CodeAction[] | null | undefined) => {
                   this._outputChannel.appendLine(
-                    `[CodeAction] Received ${
-                      codeActions?.length || 0
+                    `[CodeAction] Received ${codeActions?.length || 0
                     } CodeActions`
                   );
                   if (codeActions && codeActions.length > 0) {
                     codeActions.forEach(
                       (action: vscode.CodeAction, index: number) => {
                         this._outputChannel.appendLine(
-                          `[CodeAction] ${index + 1}. ${action.title} (kind: ${
-                            action.kind?.value || "none"
+                          `[CodeAction] ${index + 1}. ${action.title} (kind: ${action.kind?.value || "none"
                           })`
                         );
                       }
@@ -229,8 +223,7 @@ export class SqlsClient {
             return result;
           } catch (error) {
             this._outputChannel.appendLine(
-              `[CodeAction] Exception: ${
-                error instanceof Error ? error.message : String(error)
+              `[CodeAction] Exception: ${error instanceof Error ? error.message : String(error)
               }`
             );
             throw error;
@@ -251,8 +244,7 @@ export class SqlsClient {
             return next(codeAction, token);
           } catch (error) {
             this._outputChannel.appendLine(
-              `[CodeAction] Resolve error: ${
-                error instanceof Error ? error.message : String(error)
+              `[CodeAction] Resolve error: ${error instanceof Error ? error.message : String(error)
               }`
             );
             throw error;
@@ -484,5 +476,13 @@ export class SqlsClient {
    */
   isServerRunning(): boolean {
     return this._state && this._client !== undefined;
+  }
+
+  async didChangeConfiguration(params: DidChangeConfigurationParams) {
+    if (!this.isServerRunning()) {
+      return;
+    }
+
+    await this._client?.sendNotification("workspace/didChangeConfiguration", params);
   }
 }

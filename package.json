@@ -42,17 +42,37 @@
     "commands": [
       {
         "command": "sqls-next.restartLanguageServer",
-        "title": "sqls-next: Restart Language Server"
+        "title": "Sqls-Next: Restart Language Server"
       },
       {
         "command": "sqls-next.executeQuery",
-        "title": "sqls-next: Execute Query",
+        "title": "Sqls-Next: Execute Query",
         "icon": "$(play)"
       },
       {
         "command": "sqls-next.showResultPanel",
-        "title": "sqls-next: Show Result Panel",
+        "title": "Sqls-Next: Show Result Panel",
         "icon": "$(table)"
+      },
+      {
+        "command": "sqls-next.addConnectionConfig",
+        "title": "Sqls-Next: Add Connection Config"
+      },
+      {
+        "command": "sqls-next.removeConnectionConfig",
+        "title": "Sqls-Next: Remove Connection Config"
+      },
+      {
+        "command": "sqls-next.updateConnectionConfig",
+        "title": "Sqls-Next: Update Connection Config"
+      },
+      {
+        "command": "sqls-next.clearConnectionConfig",
+        "title": "Sqls-Next: Clear Connection Config"
+      },
+      {
+        "command": "sqls-next.selectConnectionConfig",
+        "title": "Sqls-Next: Select Connection Config"
       }
     ],
     "keybindings": [

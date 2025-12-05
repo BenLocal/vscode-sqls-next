@@ -1,7 +1,8 @@
 import * as vscode from "vscode";
 import { SqlsClient } from "./lspClient";
-import { InitializeOptions } from "./initialize";
+import { InitializeOptions } from "./lspTypes";
 import { ResultPanel } from "./resultPanel";
+import { addDatabaseCommand, ConnectionConfigManager } from "./database";
 
 const clientTraceName = "Sqls Next Client";
 const SqlsResultPanelViewType = "sqlsResultPanel";
@@ -13,13 +14,10 @@ let resultPanel: ResultPanel | undefined;
 export async function activate(context: vscode.ExtensionContext) {
   createResultPanel(context);
   createLspClient(context);
+  addDatabaseCommand(context, lspClient!);
 
-  const initializationOptions: InitializeOptions = {
-    connectionConfig: {
-      alias: "default",
-      driver: "mysql",
-      dataSourceName: "root:root@tcp(127.0.0.1:3306)/test",
-    },
+  let initializationOptions: InitializeOptions = {
+    connectionConfig: undefined,
   };
   startLanguageServer(initializationOptions);
 }
