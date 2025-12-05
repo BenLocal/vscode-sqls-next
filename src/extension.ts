@@ -2,7 +2,8 @@ import * as vscode from "vscode";
 import { SqlsClient } from "./lspClient";
 import { InitializeOptions } from "./lspTypes";
 import { ResultPanel } from "./resultPanel";
-import { addDatabaseCommand, ConnectionConfigManager } from "./database";
+import { addDatabaseCommand } from "./database";
+import { OutputLogger } from "./outputLogger";
 
 const clientTraceName = "Sqls Next Client";
 const SqlsResultPanelViewType = "sqlsResultPanel";
@@ -12,6 +13,7 @@ let traceOutputChannel: vscode.OutputChannel | undefined;
 let resultPanel: ResultPanel | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
+  OutputLogger.initialize(context, clientTraceName);
   createResultPanel(context);
   createLspClient(context);
   addDatabaseCommand(context, lspClient!);
@@ -24,6 +26,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
   lspClient?.stopServer();
+  lspClient?.dispose();
   lspClient = undefined;
   resultPanel?.dispose();
 }
@@ -51,8 +54,7 @@ async function createResultPanel(context: vscode.ExtensionContext) {
 }
 
 async function createLspClient(context: vscode.ExtensionContext) {
-  traceOutputChannel = vscode.window.createOutputChannel(clientTraceName);
-  lspClient = new SqlsClient(context, traceOutputChannel, resultPanel!);
+  lspClient = new SqlsClient(context, resultPanel!);
 
   const restartLanguageServerCommand = vscode.commands.registerCommand(
     "sqls-next.restartLanguageServer",
