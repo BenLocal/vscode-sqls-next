@@ -8,6 +8,8 @@ import { ResultPanel } from "./resultPanel";
 import { SqlsExecuteCommandMiddleware } from "./middleware/executeCommand";
 import { MessageInterceptor, createMessageFilter } from "./messageInterceptor";
 import { OutputLogger } from "./outputLogger";
+import { ConnectionConfigManager } from "./database";
+import { SqlsFormattingMiddleware } from "./middleware/formatting";
 
 export class SqlsClient {
   private readonly _context: vscode.ExtensionContext;
@@ -68,10 +70,7 @@ export class SqlsClient {
       run: run,
       debug: run,
     };
-    const middleware = new SqlsExecuteCommandMiddleware(
-      this._context,
-      this._resultPanel
-    );
+
     const clientOptions: lsp.LanguageClientOptions = {
       documentSelector: [{ scheme: "file", language: "sql" }],
       synchronize: {
@@ -126,7 +125,7 @@ export class SqlsClient {
         );
         return false;
       },
-      middleware: middleware,
+      middleware: this.createMiddleware(),
     };
     return new lsp.LanguageClient(
       "sqls-next",
@@ -134,6 +133,23 @@ export class SqlsClient {
       serverOptions,
       clientOptions
     );
+  }
+
+  private createMiddleware(): lsp.Middleware {
+    const execCmd = new SqlsExecuteCommandMiddleware(
+      this._context,
+      this._resultPanel
+    );
+    const fmt = new SqlsFormattingMiddleware(this._context);
+
+    return {
+      executeCommand: execCmd.executeCommand.bind(execCmd),
+      provideDocumentFormattingEdits:
+        fmt.provideDocumentFormattingEdits.bind(fmt),
+      provideDocumentRangeFormattingEdits:
+        fmt.provideDocumentRangeFormattingEdits.bind(fmt),
+      provideOnTypeFormattingEdits: fmt.provideOnTypeFormattingEdits.bind(fmt),
+    };
   }
 
   private getBasePath(): string {
@@ -169,6 +185,7 @@ export class SqlsClient {
         "sqls language server started successfully",
         "SqlsClient"
       );
+      await this.tryConnectDatabase();
     } catch (error) {
       this._state = false;
       const errorMsg = error instanceof Error ? error.message : String(error);
@@ -208,6 +225,7 @@ export class SqlsClient {
 
     try {
       await this._client.restart();
+      await this.tryConnectDatabase();
     } catch (error) {
       this._state = false;
       OutputLogger.errorWithStackTrace(
@@ -219,6 +237,21 @@ export class SqlsClient {
     }
 
     this._state = true;
+  }
+
+  private async tryConnectDatabase() {
+    const connectionConfig =
+      await ConnectionConfigManager.getCurrentConnectionConfig(this._context);
+    if (!connectionConfig) {
+      OutputLogger.error("No connection config found", "SqlsClient");
+      return;
+    }
+
+    await ConnectionConfigManager.selectConnectionConfigByConnectionConfig(
+      this._context,
+      connectionConfig,
+      this
+    );
   }
 
   /**
