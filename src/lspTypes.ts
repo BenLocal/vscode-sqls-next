@@ -1,10 +1,17 @@
+export enum DatabaseDriver {
+  MySQL = "mysql",
+  SQLite = "sqlite",
+  PostgreSQL = "postgresql",
+  ClickHouse = "clickhouse",
+}
+
 export interface InitializeOptions {
   connectionConfig: ConnectionConfig | undefined;
 }
 
 export interface ConnectionConfig {
   alias: string;
-  driver: "mysql" | "sqlite" | "postgres";
+  driver: DatabaseDriver;
   dataSourceName: string;
 }
 

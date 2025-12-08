@@ -1,3 +1,5 @@
+import path from "node:path";
+import fs from "node:fs";
 import * as vscode from "vscode";
 
 // Type definitions for query results
@@ -13,6 +15,7 @@ export class ResultPanel implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private readonly _extensionUri: vscode.Uri;
   private readonly _disposables: vscode.Disposable[] = [];
+  private _template?: string;
 
   constructor(extensionUri: vscode.Uri, viewType: string) {
     this._extensionUri = extensionUri;
@@ -36,8 +39,12 @@ export class ResultPanel implements vscode.WebviewViewProvider {
       localResourceRoots: [this._extensionUri],
     };
 
+    if (!this._template) {
+      this._template = this._getHtmlForWebview(webviewView.webview);
+    }
+
     // Set the webview's initial html content
-    webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+    webviewView.webview.html = this._template || "";
 
     // Handle messages from the webview
     webviewView.webview.onDidReceiveMessage(
@@ -145,290 +152,7 @@ export class ResultPanel implements vscode.WebviewViewProvider {
   }
 
   private _getHtmlForWebview(_webview: vscode.Webview) {
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SQL Results</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: var(--vscode-font-family);
-            font-size: var(--vscode-font-size);
-            color: var(--vscode-foreground);
-            background-color: var(--vscode-editor-background);
-            padding: 16px;
-        }
-
-        .container {
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
-
-        .toolbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            margin-bottom: 12px;
-            border-bottom: 1px solid var(--vscode-panel-border);
-        }
-
-        .info {
-            font-size: 0.9em;
-            color: var(--vscode-descriptionForeground);
-        }
-
-        .actions {
-            display: flex;
-            gap: 8px;
-        }
-
-        button {
-            background-color: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: none;
-            padding: 6px 14px;
-            cursor: pointer;
-            border-radius: 2px;
-            font-size: 13px;
-        }
-
-        button:hover {
-            background-color: var(--vscode-button-hoverBackground);
-        }
-
-        .table-container {
-            flex: 1;
-            overflow: auto;
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 4px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-
-        thead {
-            position: sticky;
-            top: 0;
-            background-color: var(--vscode-editor-background);
-            z-index: 10;
-        }
-
-        th {
-            text-align: left;
-            padding: 10px 12px;
-            font-weight: 600;
-            border-bottom: 2px solid var(--vscode-panel-border);
-            background-color: var(--vscode-list-hoverBackground);
-            white-space: nowrap;
-        }
-
-        td {
-            padding: 8px 12px;
-            border-bottom: 1px solid var(--vscode-panel-border);
-            max-width: 400px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        tr:hover {
-            background-color: var(--vscode-list-hoverBackground);
-        }
-
-        tr:nth-child(even) {
-            background-color: var(--vscode-list-inactiveSelectionBackground);
-        }
-
-        .null-value {
-            color: var(--vscode-descriptionForeground);
-            font-style: italic;
-        }
-
-        .loading {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 400px;
-            color: var(--vscode-descriptionForeground);
-        }
-
-        .spinner {
-            border: 3px solid var(--vscode-panel-border);
-            border-top: 3px solid var(--vscode-button-background);
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 16px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .error {
-            padding: 16px;
-            background-color: var(--vscode-inputValidation-errorBackground);
-            border: 1px solid var(--vscode-inputValidation-errorBorder);
-            border-radius: 4px;
-            color: var(--vscode-inputValidation-errorForeground);
-            margin-top: 16px;
-        }
-
-        .error-title {
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-
-        .empty {
-            text-align: center;
-            padding: 40px;
-            color: var(--vscode-descriptionForeground);
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div id="content">
-            <div class="empty">
-                Execute a SQL query to see results here
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const vscode = acquireVsCodeApi();
-
-        // Send ready message
-        vscode.postMessage({ type: 'ready' });
-
-        // Handle messages from extension
-        window.addEventListener('message', event => {
-            const message = event.data;
-            switch (message.type) {
-                case 'displayResults':
-                    displayResults(message.data);
-                    break;
-                case 'displayError':
-                    displayError(message.error);
-                    break;
-                case 'displayLoading':
-                    displayLoading(message.message);
-                    break;
-            }
-        });
-
-        function displayLoading(message) {
-            document.getElementById('content').innerHTML = \`
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <div>\${message}</div>
-                </div>
-            \`;
-        }
-
-        function displayError(error) {
-            document.getElementById('content').innerHTML = \`
-                <div class="error">
-                    <div class="error-title">Error executing query</div>
-                    <div>\${escapeHtml(error)}</div>
-                </div>
-            \`;
-        }
-
-        function displayResults(data) {
-            if (!data || !data.rows || data.rows.length === 0) {
-                document.getElementById('content').innerHTML = \`
-                    <div class="empty">No results found</div>
-                \`;
-                return;
-            }
-
-            const rowCount = data.rows.length;
-            const columnCount = data.columns.length;
-
-            let html = \`
-                <div class="toolbar">
-                    <div class="info">
-                        \${rowCount} row\${rowCount !== 1 ? 's' : ''} × \${columnCount} column\${columnCount !== 1 ? 's' : ''}
-                    </div>
-                    <div class="actions">
-                        <button onclick="exportToCsv()">Export to CSV</button>
-                    </div>
-                </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-            \`;
-
-            // Add headers
-            data.columns.forEach(col => {
-                html += \`<th>\${escapeHtml(col.name)}</th>\`;
-            });
-
-            html += \`
-                            </tr>
-                        </thead>
-                        <tbody>
-            \`;
-
-            // Add rows
-            data.rows.forEach(row => {
-                html += '<tr>';
-                data.columns.forEach(col => {
-                    const value = row[col.name];
-                    if (value === null || value === undefined) {
-                        html += '<td class="null-value">NULL</td>';
-                    } else {
-                        html += \`<td title="\${escapeHtml(String(value))}">\${escapeHtml(String(value))}</td>\`;
-                    }
-                });
-                html += '</tr>';
-            });
-
-            html += \`
-                        </tbody>
-                    </table>
-                </div>
-            \`;
-
-            document.getElementById('content').innerHTML = html;
-
-            // Store data for export
-            window.currentData = data;
-        }
-
-        function exportToCsv() {
-            if (window.currentData) {
-                vscode.postMessage({
-                    type: 'exportCsv',
-                    data: window.currentData
-                });
-            }
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-    </script>
-</body>
-</html>`;
+    const templatePath = path.join(this._extensionUri.fsPath, "template", "resultPanel.html");
+    return fs.readFileSync(templatePath, "utf8");
   }
 }

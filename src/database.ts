@@ -1,11 +1,6 @@
 import * as vscode from "vscode";
 import { SqlsClient } from "./lspClient";
-
-export enum DatabaseDriver {
-  MySQL = "mysql",
-  SQLite = "sqlite",
-  PostgreSQL = "postgresql",
-}
+import { DatabaseDriver } from "./lspTypes";
 
 export interface DatabaseDriverInfo {
   label: string;
@@ -28,6 +23,11 @@ export const DatabaseDriverMap: Record<DatabaseDriver, DatabaseDriverInfo> = {
     label: "PostgreSQL",
     description: "PostgreSQL database server",
     example: "postgres://user:password@localhost:5432/database",
+  },
+  [DatabaseDriver.ClickHouse]: {
+    label: "ClickHouse",
+    description: "ClickHouse database server",
+    example: "clickhouse://user:password@localhost:9000/database",
   },
 };
 

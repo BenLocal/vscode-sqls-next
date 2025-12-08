@@ -79,12 +79,6 @@ export function parseAsciiTableResult(asciiTable: string): QueryResult {
         // Handle special values
         if (value === "<nil>" || value === "NULL" || value === "") {
           value = null;
-        } else if (/^\d+$/.test(value)) {
-          // Convert to number if it's a pure number
-          value = parseInt(value, 10);
-        } else if (/^\d+\.\d+$/.test(value)) {
-          // Convert to float if it's a decimal number
-          value = parseFloat(value);
         }
 
         row[colName] = value;
