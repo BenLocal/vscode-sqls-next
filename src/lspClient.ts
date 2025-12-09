@@ -14,6 +14,7 @@ import { MessageInterceptor, createMessageFilter } from "./messageInterceptor";
 import { OutputLogger } from "./outputLogger";
 import { ConnectionConfigManager } from "./database";
 import { SqlsFormattingMiddleware } from "./middleware/formatting";
+import { getBasePath } from "./util/platform";
 
 export class SqlsClient {
   private readonly _context: vscode.ExtensionContext;
@@ -44,7 +45,7 @@ export class SqlsClient {
   ): lsp.LanguageClient {
     const ext = process.platform === "win32" ? ".exe" : "";
     const perfix = process.platform === "win32" ? ".\\" : "./";
-    const base = this.getBasePath();
+    const base = getBasePath();
     const cwd = path.join(this._context.extensionPath, "server", base);
     const sqls = `sqls${ext}`;
 
@@ -154,22 +155,6 @@ export class SqlsClient {
         fmt.provideDocumentRangeFormattingEdits.bind(fmt),
       provideOnTypeFormattingEdits: fmt.provideOnTypeFormattingEdits.bind(fmt),
     };
-  }
-
-  private getBasePath(): string {
-    let arch = "amd64";
-    if (process.arch === "arm64") {
-      arch = "arm64";
-    }
-
-    let os = "linux";
-    if (process.platform === "win32") {
-      os = "win";
-    } else if (process.platform === "darwin") {
-      os = "darwin";
-    }
-
-    return `${os}_${arch}`;
   }
 
   async startServer(initializeOptions: InitializeOptions) {

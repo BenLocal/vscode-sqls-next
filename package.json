@@ -104,7 +104,8 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "vscode-test",
-    "build:sqls": "ts-node scripts/build_sqls.ts"
+    "build:sqls": "ts-node scripts/build_sqls.ts",
+    "release:sqls": "ts-node scripts/build_sqls.ts --release"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
