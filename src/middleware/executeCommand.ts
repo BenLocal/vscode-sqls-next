@@ -5,7 +5,8 @@ import { parseResultSmart } from "../resultParser";
 import { OutputLogger } from "../outputLogger";
 
 export class SqlsExecuteCommandMiddleware
-  implements lsp.ExecuteCommandMiddleware {
+  implements lsp.ExecuteCommandMiddleware
+{
   private readonly _context: vscode.ExtensionContext;
   private readonly _resultPanel: ResultPanel | undefined;
 
@@ -55,7 +56,6 @@ export class SqlsExecuteCommandMiddleware
         "SqlsExecuteCommandMiddleware"
       );
       await this._resultPanel?.displayError(errorMsg);
-      throw error;
     }
   }
 }

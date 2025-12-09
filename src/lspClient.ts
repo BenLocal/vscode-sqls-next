@@ -34,7 +34,10 @@ export class SqlsClient {
     this._messageInterceptor = new MessageInterceptor({
       logMessages: true,
       // Default filter: suppress "no database connection" messages
-      filter: createMessageFilter(["no database connection"]),
+      filter: createMessageFilter([
+        "no database connection",
+        "Request workspace/executeCommand failed.",
+      ]),
     });
 
     this._messageInterceptor.activate();
