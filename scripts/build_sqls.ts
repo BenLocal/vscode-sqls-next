@@ -12,6 +12,10 @@ const PROJECT_ROOT = path.join(__dirname, "..");
 const BUILD_DIR = path.join(PROJECT_ROOT, ".build");
 const SQLS_DIR = path.join(BUILD_DIR, "sqls");
 const IS_RELEASE = process.argv.includes("--release");
+const CURRENT_REVISION = execSync("git rev-parse --short HEAD", {
+  encoding: "utf-8",
+}).trim();
+const BUILD_LDFLAGS = `-s -w -X main.revision=${CURRENT_REVISION}`;
 
 function execCommand(command: string, cwd?: string): string {
   console.log(`\x1b[36m[RUN]\x1b[0m ${command}`);
@@ -92,7 +96,10 @@ function buildWithXgo(): void {
   const goTarget = getGoTarget();
   const outPrefix = "sqls";
   // --out sqls-<os>-<arch>[.exe]
-  execCommand(`xgo --out ${outPrefix} --targets=${goTarget} .`, SQLS_DIR);
+  execCommand(
+    `xgo --out ${outPrefix} --targets=${goTarget} --ldflags='${BUILD_LDFLAGS}' .`,
+    SQLS_DIR
+  );
 
   const osArchs = getOsArchs();
   clearServerDir();
