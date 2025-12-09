@@ -1,6 +1,6 @@
 export enum DatabaseDriver {
   MySQL = "mysql",
-  SQLite = "sqlite",
+  SQLite = "sqlite3",
   PostgreSQL = "postgresql",
   ClickHouse = "clickhouse",
 }
@@ -30,6 +30,6 @@ export interface SqlsSettingConfig {
 
 export interface SqlsDBConfig {
   alias: string;
-  driver: "mysql" | "sqlite" | "postgres";
+  driver: "mysql" | "sqlite3" | "postgres";
   dataSourceName: string;
 }

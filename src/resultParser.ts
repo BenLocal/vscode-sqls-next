@@ -1,116 +1,101 @@
 import { QueryResult } from "./resultPanel";
 
 /**
- * Parse ASCII table format result to QueryResult
- * Example input:
- * +----+------+-----+--------+--------+-------------+
- * | ID | NAME | AGE | SWITCH |  1TO1  | CREATE TIME |
- * +----+------+-----+--------+--------+-------------+
- * |  1 | aaa  |   3 |        | shiben | <nil>       |
- * +----+------+-----+--------+--------+-------------+
- * 1 rows in set
+ * Parse JSON format result to QueryResult
+ * Supported formats:
+ * 1. { "columns": ["col1", "col2"], "rows": [["val1", "val2"], ...] }
+ * 2. {"rows_affected": 1} - for INSERT/UPDATE/DELETE operations
  */
-export function parseAsciiTableResult(asciiTable: string): QueryResult {
-  if (!asciiTable || typeof asciiTable !== "string") {
-    throw new Error("Invalid ASCII table input");
+export function parseJsonResult(jsonData: any): QueryResult {
+  if (!jsonData || typeof jsonData !== "object") {
+    throw new Error("Invalid JSON data input");
   }
 
-  const lines = asciiTable.split("\n").filter((line) => line.trim());
-
-  // Find header line (contains column names)
-  let headerLineIndex = -1;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    // Header line starts with | and contains letters
-    if (line.startsWith("|") && /[A-Za-z]/.test(line)) {
-      headerLineIndex = i;
-      break;
-    }
+  // Handle rows_affected format (for INSERT/UPDATE/DELETE operations)
+  if ("rows_affected" in jsonData && typeof jsonData.rows_affected === "number") {
+    return {
+      columns: [{ name: "rows_affected" }],
+      rows: [{ rows_affected: jsonData.rows_affected }],
+      rowsAffected: jsonData.rows_affected,
+    };
   }
 
-  if (headerLineIndex === -1) {
-    throw new Error("Could not find header line in ASCII table");
-  }
-
-  // Parse column names from header
-  const headerLine = lines[headerLineIndex];
-  const columnNames = headerLine
-    .split("|")
-    .slice(1, -1) // Remove first and last empty strings
-    .map((col) => col.trim())
-    .filter((col) => col.length > 0);
-
-  if (columnNames.length === 0) {
-    throw new Error("No columns found in header");
-  }
-
-  // Create columns array
-  const columns = columnNames.map((name) => ({ name }));
-
-  // Parse data rows
-  const rows: Array<Record<string, any>> = [];
-
-  // Find data lines (start with | and come after header, before separator)
-  for (let i = headerLineIndex + 1; i < lines.length; i++) {
-    const line = lines[i];
-
-    // Skip separator lines (start with +)
-    if (line.startsWith("+")) {
-      continue;
+  // Handle format with columns and rows
+  if ("columns" in jsonData && "rows" in jsonData) {
+    // Check if it has the expected format with columns and rows
+    if (!Array.isArray(jsonData.columns) || !Array.isArray(jsonData.rows)) {
+      throw new Error("JSON data must have 'columns' and 'rows' arrays");
     }
 
-    // Skip summary lines (e.g., "1 rows in set")
-    if (!line.startsWith("|")) {
-      break;
+    const columnNames = jsonData.columns;
+    if (columnNames.length === 0) {
+      throw new Error("No columns found in JSON data");
     }
 
-    // Parse data row
-    const values = line
-      .split("|")
-      .slice(1, -1) // Remove first and last empty strings
-      .map((val) => val.trim());
+    // Create columns array
+    const columns = columnNames.map((name: string) => ({ name: String(name) }));
 
-    if (values.length === columnNames.length) {
-      const row: Record<string, any> = {};
-
-      columnNames.forEach((colName, index) => {
-        let value: any = values[index];
-
+    // Parse rows: convert array of arrays to array of objects
+    const rows: Array<Record<string, any>> = jsonData.rows.map((row: any[]) => {
+      const rowObj: Record<string, any> = {};
+      columnNames.forEach((colName: string, index: number) => {
+        let value = row[index];
         // Handle special values
-        if (value === "<nil>" || value === "NULL" || value === "") {
+        if (value === "null" || value === null || value === undefined || value === "<nil>") {
           value = null;
         }
-
-        row[colName] = value;
+        rowObj[colName] = value;
       });
+      return rowObj;
+    });
 
-      rows.push(row);
-    }
+    return {
+      columns,
+      rows,
+      rowsAffected: rows.length,
+    };
   }
 
-  return {
-    columns,
-    rows,
-    rowsAffected: rows.length,
-  };
+  // If format is not recognized, throw error
+  throw new Error(
+    "JSON data must have either 'columns' and 'rows' arrays, or 'rows_affected' number"
+  );
 }
 
 /**
- * Try to parse result as ASCII table, if fails return original result
+ * Smart parser that handles various result formats
+ * Supports:
+ * - JSON string
+ * - JSON object
+ * - Already parsed QueryResult
  */
 export function parseResultSmart(result: any): QueryResult {
   // If already in correct format, return as is
   if (result && typeof result === "object" && result.columns && result.rows) {
-    return result as QueryResult;
+    // Check if rows are objects (already in correct format) or arrays (need conversion)
+    if (Array.isArray(result.rows) && result.rows.length > 0) {
+      // If first row is an array, parse as JSON format
+      if (Array.isArray(result.rows[0])) {
+        try {
+          return parseJsonResult(result);
+        } catch (error) {
+          console.error("Failed to parse JSON result:", error);
+        }
+      }
+      // If first row is an object, it's already in the correct format
+      if (typeof result.rows[0] === "object" && !Array.isArray(result.rows[0])) {
+        return result as QueryResult;
+      }
+    }
   }
 
-  // If it's a string that looks like an ASCII table, parse it
-  if (typeof result === "string" && result.includes("+--") && result.includes("|")) {
+  // Try to parse as JSON string
+  if (typeof result === "string") {
     try {
-      return parseAsciiTableResult(result);
-    } catch (error) {
-      console.error("Failed to parse ASCII table:", error);
-      // Return a simple result with the raw string
+      const jsonData = JSON.parse(result);
+      return parseJsonResult(jsonData);
+    } catch (e) {
+      // Not valid JSON, return as single column result
       return {
         columns: [{ name: "result" }],
         rows: [{ result: result }],
@@ -118,16 +103,12 @@ export function parseResultSmart(result: any): QueryResult {
     }
   }
 
-  // Try to handle other formats
-  if (Array.isArray(result)) {
-    // If it's an array of objects, convert to QueryResult
-    if (result.length > 0 && typeof result[0] === "object") {
-      const columns = Object.keys(result[0]).map((name) => ({ name }));
-      return {
-        columns,
-        rows: result,
-        rowsAffected: result.length,
-      };
+  // Try to parse as object directly
+  if (typeof result === "object" && result !== null) {
+    try {
+      return parseJsonResult(result);
+    } catch (error) {
+      console.error("Failed to parse result:", error);
     }
   }
 
@@ -138,19 +119,4 @@ export function parseResultSmart(result: any): QueryResult {
   };
 }
 
-/**
- * Detect if a string is an ASCII table format
- */
-export function isAsciiTable(str: string): boolean {
-  if (typeof str !== "string") {
-    return false;
-  }
-
-  // Check for table markers
-  const hasTableBorder = str.includes("+--") || str.includes("+==");
-  const hasColumnSeparator = str.includes("|");
-  const hasNewlines = str.includes("\n");
-
-  return hasTableBorder && hasColumnSeparator && hasNewlines;
-}
 

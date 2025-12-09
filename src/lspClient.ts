@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as vscode from "vscode";
 
 import * as lsp from "vscode-languageclient/node";
-import { DidChangeConfigurationParams, InitializeOptions } from "./lspTypes";
+import { ConnectionConfig, DidChangeConfigurationParams, InitializeOptions } from "./lspTypes";
 import { ResultPanel } from "./resultPanel";
 import { SqlsExecuteCommandMiddleware } from "./middleware/executeCommand";
 import { MessageInterceptor, createMessageFilter } from "./messageInterceptor";
@@ -240,18 +240,7 @@ export class SqlsClient {
   }
 
   private async tryConnectDatabase() {
-    const connectionConfig =
-      await ConnectionConfigManager.getCurrentConnectionConfig(this._context);
-    if (!connectionConfig) {
-      OutputLogger.error("No connection config found", "SqlsClient");
-      return;
-    }
-
-    await ConnectionConfigManager.selectConnectionConfigByConnectionConfig(
-      this._context,
-      connectionConfig,
-      this
-    );
+    await this.didChangeConfiguration(true);
   }
 
   /**
@@ -301,16 +290,101 @@ export class SqlsClient {
     }
   }
 
-  async didChangeConfiguration(params: DidChangeConfigurationParams) {
+  async didChangeConfiguration(switchConnection: boolean = false) {
     if (!this._state || !this._client) {
       OutputLogger.error("Server is not started", "SqlsClient");
       return;
     }
 
+    const connectionConfigs = await ConnectionConfigManager.getConnectionConfigs(this._context);
+    const defaultConnectionConfig = connectionConfigs.find(config => config.selected);
+    const params: DidChangeConfigurationParams = {
+      settings: {
+        sqls: {
+          lowercaseKeywords: false,
+          connections: connectionConfigs.map(config => {
+            return {
+              alias: config.config.alias,
+              driver: config.config.driver as "mysql" | "sqlite3" | "postgres",
+              dataSourceName: config.config.dataSourceName,
+            };
+          }),
+        }
+      }
+    };
     await this._client?.sendNotification(
       "workspace/didChangeConfiguration",
       params
     );
+
+    const selectAlias = defaultConnectionConfig?.config?.alias;
+    if (switchConnection && selectAlias) {
+      await this.switchConnection(selectAlias);
+    }
+  }
+
+  async switchConnection(alias: string) {
+    await this.executeServerCommand("switchConnections", [alias]);
+  }
+
+  async switchDatabase(database: string) {
+    await this.executeServerCommand("switchDatabase", [database]);
+  }
+
+  async getDatabases(alias: string): Promise<string[]> {
+    try {
+      await this.switchConnection(alias);
+      return await this.getCurrentDatabases();
+    } finally {
+      // restore the current connection
+      const current = await ConnectionConfigManager.getCurrentConnectionConfig(this._context);
+      const currentAlias = current?.alias;
+      if (currentAlias && currentAlias !== alias) {
+        await this.switchConnection(currentAlias);
+      }
+    }
+  }
+
+  async getTables(alias: string, database: string): Promise<string[]> {
+    try {
+      await this.switchConnection(alias);
+      await this.switchDatabase(database);
+      return await this.getCurrentTables(database);
+    } finally {
+      // restore the current connection
+      const current = await ConnectionConfigManager.getCurrentConnectionConfig(this._context);
+      const currentAlias = current?.alias;
+      if (currentAlias && currentAlias !== alias) {
+        await this.switchConnection(currentAlias);
+      }
+    }
+  }
+
+  async getCurrentDatabases(): Promise<string[]> {
+    const result = await this.executeServerCommand("showDatabases");
+    if (typeof result === "string") {
+      return result
+        .split("\n")
+        .map((db) => db.trim())
+        .filter((db) => db.length > 0);
+    }
+    return [];
+  }
+
+  async getCurrentTables(scheme: string): Promise<string[]> {
+    const result = await this.executeServerCommand("showTables", [scheme]);
+    if (typeof result === "string") {
+      return result
+        .split("\n")
+        .map((table) => {
+          if (table.startsWith(`${scheme}.`)) {
+            return table.substring(`${scheme}.`.length).trim();
+          }
+          return table.trim();
+        })
+        .filter((table) => table.length > 0);
+    }
+    return [];
   }
 
   /**

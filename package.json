@@ -5,7 +5,8 @@
   "publisher": "shiben",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.74.0"
+    "vscode": "^1.74.0",
+    "node": "^20"
   },
   "categories": [
     "Other"
@@ -27,6 +28,12 @@
           "id": "sqlsResultPanel",
           "name": "Sqls",
           "when": "true"
+        }
+      ],
+      "explorer": [
+        {
+          "id": "sqlsExplorer",
+          "name": "Sqls Explorer"
         }
       ]
     },
@@ -73,6 +80,10 @@
       {
         "command": "sqls-next.selectConnectionConfig",
         "title": "Sqls-Next: Select Connection Config"
+      },
+      {
+        "command": "sqls-next.showDatabases",
+        "title": "Sqls-Next: Show Databases"
       }
     ],
     "keybindings": [

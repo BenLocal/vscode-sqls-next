@@ -106,6 +106,7 @@ export function addDatabaseCommand(
         context,
         connectionConfig
       );
+      await client.didChangeConfiguration(false);
     }
   );
   context.subscriptions.push(addConnectionConfigCommand);
@@ -124,6 +125,7 @@ export function addDatabaseCommand(
         context,
         alias.value
       );
+      await client.didChangeConfiguration(false);
     }
   );
   context.subscriptions.push(removeConnectionConfigCommand);
@@ -158,6 +160,7 @@ export function addDatabaseCommand(
 
       current.dataSourceName = newDataSourceName;
       await ConnectionConfigManager.updateConnectionConfig(context, current);
+      await client.didChangeConfiguration(false);
     }
   );
   context.subscriptions.push(updateConnectionConfigCommand);
@@ -172,11 +175,8 @@ export function addDatabaseCommand(
       if (!alias) {
         return;
       }
-      await ConnectionConfigManager.selectConnectionConfigByAlias(
-        context,
-        alias.value,
-        client
-      );
+      await ConnectionConfigManager.selectConnectionConfig(context, alias.value);
+      await client.switchConnection(alias.value);
     }
   );
   context.subscriptions.push(selectConnectionConfigCommand);
@@ -185,6 +185,7 @@ export function addDatabaseCommand(
     "sqls-next.clearConnectionConfig",
     async () => {
       await ConnectionConfigManager.clearConnectionConfig(context);
+      await client.didChangeConfiguration(false);
     }
   );
   context.subscriptions.push(clearConnectionConfigCommand);
@@ -236,6 +237,16 @@ export class ConnectionConfigManager {
     await context.globalState.update(key, undefined);
   }
 
+  public static async selectConnectionConfig(
+    context: vscode.ExtensionContext,
+    alias: string
+  ) {
+    await context.globalState.update(
+      ConnectionConfigManager.DefaultConnectionConfigKey,
+      alias
+    );
+  }
+
   public static async getConnectionConfigs(
     context: vscode.ExtensionContext
   ): Promise<
@@ -271,50 +282,6 @@ export class ConnectionConfigManager {
       }
     }
     return configs;
-  }
-
-  public static async selectConnectionConfigByAlias(
-    context: vscode.ExtensionContext,
-    alias: string,
-    client: SqlsClient,
-    changeDefault: boolean = true
-  ) {
-    if (changeDefault) {
-      await context.globalState.update(
-        ConnectionConfigManager.DefaultConnectionConfigKey,
-        alias
-      );
-    }
-    const config = this.getConnectionConfig(context, alias);
-    if (!config) {
-      return;
-    }
-    return await this.selectConnectionConfigByConnectionConfig(
-      context,
-      config,
-      client
-    );
-  }
-
-  public static async selectConnectionConfigByConnectionConfig(
-    context: vscode.ExtensionContext,
-    config: ConnectionConfig,
-    client: SqlsClient
-  ) {
-    await client.didChangeConfiguration({
-      settings: {
-        sqls: {
-          lowercaseKeywords: false,
-          connections: [
-            {
-              alias: config.alias,
-              driver: config.driver as "mysql" | "sqlite" | "postgres",
-              dataSourceName: config.dataSourceName,
-            },
-          ],
-        },
-      },
-    });
   }
 
   /**
