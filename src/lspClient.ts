@@ -3,7 +3,11 @@ import * as fs from "node:fs";
 import * as vscode from "vscode";
 
 import * as lsp from "vscode-languageclient/node";
-import { ConnectionConfig, DidChangeConfigurationParams, InitializeOptions } from "./lspTypes";
+import {
+  ConnectionConfig,
+  DidChangeConfigurationParams,
+  InitializeOptions,
+} from "./lspTypes";
 import { ResultPanel } from "./resultPanel";
 import { SqlsExecuteCommandMiddleware } from "./middleware/executeCommand";
 import { MessageInterceptor, createMessageFilter } from "./messageInterceptor";
@@ -41,7 +45,7 @@ export class SqlsClient {
     const ext = process.platform === "win32" ? ".exe" : "";
     const perfix = process.platform === "win32" ? ".\\" : "./";
     const base = this.getBasePath();
-    const cwd = path.join(this._context.extensionPath, "resources", base);
+    const cwd = path.join(this._context.extensionPath, "server", base);
     const sqls = `sqls${ext}`;
 
     // Check if sqls executable exists
@@ -296,21 +300,24 @@ export class SqlsClient {
       return;
     }
 
-    const connectionConfigs = await ConnectionConfigManager.getConnectionConfigs(this._context);
-    const defaultConnectionConfig = connectionConfigs.find(config => config.selected);
+    const connectionConfigs =
+      await ConnectionConfigManager.getConnectionConfigs(this._context);
+    const defaultConnectionConfig = connectionConfigs.find(
+      (config) => config.selected
+    );
     const params: DidChangeConfigurationParams = {
       settings: {
         sqls: {
           lowercaseKeywords: false,
-          connections: connectionConfigs.map(config => {
+          connections: connectionConfigs.map((config) => {
             return {
               alias: config.config.alias,
               driver: config.config.driver as "mysql" | "sqlite3" | "postgres",
               dataSourceName: config.config.dataSourceName,
             };
           }),
-        }
-      }
+        },
+      },
     };
     await this._client?.sendNotification(
       "workspace/didChangeConfiguration",
@@ -337,7 +344,9 @@ export class SqlsClient {
       return await this.getCurrentDatabases();
     } finally {
       // restore the current connection
-      const current = await ConnectionConfigManager.getCurrentConnectionConfig(this._context);
+      const current = await ConnectionConfigManager.getCurrentConnectionConfig(
+        this._context
+      );
       const currentAlias = current?.alias;
       if (currentAlias && currentAlias !== alias) {
         await this.switchConnection(currentAlias);
@@ -352,7 +361,9 @@ export class SqlsClient {
       return await this.getCurrentTables(database);
     } finally {
       // restore the current connection
-      const current = await ConnectionConfigManager.getCurrentConnectionConfig(this._context);
+      const current = await ConnectionConfigManager.getCurrentConnectionConfig(
+        this._context
+      );
       const currentAlias = current?.alias;
       if (currentAlias && currentAlias !== alias) {
         await this.switchConnection(currentAlias);
