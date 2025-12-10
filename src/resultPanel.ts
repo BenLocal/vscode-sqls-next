@@ -25,7 +25,7 @@ export class ResultPanel implements vscode.WebviewViewProvider {
   }
 
   private async show() {
-    await vscode.commands.executeCommand(this._viewType + ".focus");
+    //await vscode.commands.executeCommand(this._viewType + ".focus");
     this._view?.show(true);
   }
 
