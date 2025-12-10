@@ -3,7 +3,7 @@
   "displayName": "sqls-next",
   "description": "vscode sqls next",
   "publisher": "shiben",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -35,6 +35,7 @@
     "LICENSE.md",
     "icon.png"
   ],
+  "icon": "icon.png",
   "main": "./dist/extension.js",
   "contributes": {
     "views": {
