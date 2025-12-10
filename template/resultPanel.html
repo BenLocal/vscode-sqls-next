@@ -159,30 +159,181 @@
       color: var(--vscode-descriptionForeground);
     }
 
-    /* Tooltip for full cell content */
-    .cell-tooltip {
+    /* Side panel for cell details */
+    .cell-side-panel {
       position: fixed;
-      max-width: 480px;
+      top: 0;
+      right: 0;
+      width: 400px;
+      height: 100vh;
       background: var(--vscode-editorWidget-background);
       color: var(--vscode-editor-foreground);
-      border: 1px solid var(--vscode-editorWidget-border);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-      padding: 8px;
-      border-radius: 4px;
+      border-left: 1px solid var(--vscode-editorWidget-border);
+      box-shadow: -2px 0 8px rgba(0, 0, 0, 0.25);
       z-index: 1000;
       display: none;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.3s ease-in-out;
+    }
+
+    .cell-side-panel.open {
+      display: flex;
+      transform: translateX(0);
+    }
+
+    .cell-side-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      border-bottom: 1px solid var(--vscode-panel-border);
+    }
+
+    .cell-side-panel-close {
+      background: none;
+      border: none;
+      color: var(--vscode-foreground);
+      cursor: pointer;
+      padding: 4px;
+      font-size: 18px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 2px;
+    }
+
+    .cell-side-panel-close:hover {
+      background-color: var(--vscode-list-hoverBackground);
+    }
+
+    .cell-side-panel-content {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
       word-break: break-all;
-      font-size: 12px;
+      white-space: pre-wrap;
+      font-size: 13px;
+      font-family: var(--vscode-editor-font-family);
     }
 
-    .cell-tooltip .tooltip-actions {
-      margin-top: 6px;
-      text-align: right;
+    .cell-side-panel-actions {
+      padding: 12px 16px;
+      border-top: 1px solid var(--vscode-panel-border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
     }
 
-    .cell-tooltip button {
-      padding: 4px 10px;
+    .cell-side-panel-actions button {
+      padding: 6px 12px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .copy-icon {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    /* Overlay to close panel when clicking outside */
+    .cell-side-panel-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.1);
+      z-index: 999;
+      display: none;
+    }
+
+    .cell-side-panel-overlay.show {
+      display: block;
+    }
+
+    .result-cell {
+      cursor: pointer;
+    }
+
+    .result-cell:hover {
+      background-color: var(--vscode-list-hoverBackground);
+    }
+
+    /* List view styles for databases and tables */
+    .list-view {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .list-item {
+      padding: 8px 12px;
+      margin: 2px 0;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background-color 0.2s;
+    }
+
+    .list-item:hover {
+      background-color: var(--vscode-list-hoverBackground);
+    }
+
+    .list-item-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      color: var(--vscode-icon-foreground);
+    }
+
+    .list-item-name {
+      flex: 1;
+      font-size: 13px;
+      word-break: break-word;
+    }
+
+    .list-header {
+      padding: 12px 16px;
+      font-weight: 600;
+      font-size: 14px;
+      border-bottom: 1px solid var(--vscode-panel-border);
+      background-color: var(--vscode-list-hoverBackground);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .list-header-icon {
+      width: 18px;
+      height: 18px;
+      color: var(--vscode-icon-foreground);
+    }
+
+    .view-toggle {
+      display: flex;
+      gap: 4px;
+      margin-left: auto;
+    }
+
+    .view-toggle button {
+      padding: 4px 8px;
       font-size: 12px;
+      background: transparent;
+      border: 1px solid var(--vscode-panel-border);
+    }
+
+    .view-toggle button.active {
+      background-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
     }
   </style>
 </head>
@@ -210,6 +361,12 @@
           break;
         case 'displayLoading':
           displayLoading(message.message);
+          break;
+        case 'displayDatabases':
+          displayDatabases(message.data);
+          break;
+        case 'displayTables':
+          displayTables(message.data);
           break;
       }
     });
@@ -248,14 +405,8 @@
                     <div class="info">
                         ${rowCount} row${rowCount === 1 ? '' : 's'} × ${columnCount} column${columnCount === 1 ? '' : 's'}
                     </div>
-                    <div class="actions">
-                        <button onclick="exportToCsv()">Export to CSV</button>
-                    </div>
                 </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
+                <div class="table-container"><table><thead><tr>
             `;
 
       // Add headers
@@ -278,20 +429,14 @@
             html += '<td class="null-value">NULL</td>';
           } else {
             const cellValue = String(value);
-            html += `<td class="result-cell" data-value="${escapeHtml(cellValue)}">${escapeHtml(cellValue)}</td>`;
+            html += `<td class="result-cell" data-value="${escapeHtmlAttr(cellValue)}">${escapeHtml(cellValue)}</td>`;
           }
         });
         html += '</tr>';
       });
 
-      html += `
-                        </tbody>
-                    </table>
-                </div>
-            `;
-
+      html += `</tbody></table></div>`;
       document.getElementById('content').innerHTML = html;
-
       // Store data for export
       globalThis.currentData = data;
 
@@ -299,98 +444,220 @@
       setupCellTooltips();
     }
 
-    function exportToCsv() {
-      if (globalThis.currentData) {
-        vscode.postMessage({
-          type: 'exportCsv',
-          data: globalThis.currentData
-        });
+    function displayDatabases(data) {
+      const { databases, connectionAlias } = data || {};
+      if (!databases || databases.length === 0) {
+        document.getElementById('content').innerHTML = `
+          <div class="empty">No databases found</div>
+        `;
+        return;
       }
+
+      let html = `
+        <div class="toolbar">
+          <div class="info">
+            ${connectionAlias ? `Connection: ${escapeHtml(connectionAlias)} • ` : ''}${databases.length} database${databases.length === 1 ? '' : 's'}
+          </div>
+        </div>
+        <div class="list-view">
+          <div class="list-header">
+            <svg class="list-header-icon" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 2.5a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-.5.5h-6a.5.5 0 0 1-.5-.5v-6zm1 .5v5h5V3H4z"/>
+              <path d="M3 9.5a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-.5.5h-6a.5.5 0 0 1-.5-.5v-6zm1 .5v5h5v-5H4z"/>
+              <path d="M9.5 2.5a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-.5.5h-6a.5.5 0 0 1-.5-.5v-6zm1 .5v5h5V3h-5z"/>
+              <path d="M9.5 9.5a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-.5.5h-6a.5.5 0 0 1-.5-.5v-6zm1 .5v5h5v-5h-5z"/>
+            </svg>
+            Databases
+          </div>
+      `;
+
+      databases.forEach(db => {
+        html += `
+          <div class="list-item" onclick="selectDatabase('${escapeHtmlAttr(db)}')">
+            <svg class="list-item-icon" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+              <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zM2.5 2a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zm6.5.5A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zM1 10.5A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zm6.5.5A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3z"/>
+            </svg>
+            <span class="list-item-name">${escapeHtml(db)}</span>
+          </div>
+        `;
+      });
+
+      html += `</div>`;
+      document.getElementById('content').innerHTML = html;
+    }
+
+    function displayTables(data) {
+      const { tables, database, connectionAlias } = data || {};
+      if (!tables || tables.length === 0) {
+        document.getElementById('content').innerHTML = `
+          <div class="empty">No tables found${database ? ` in database: ${escapeHtml(database)}` : ''}</div>
+        `;
+        return;
+      }
+
+      let html = `
+        <div class="toolbar">
+          <div class="info">
+            ${connectionAlias ? `Connection: ${escapeHtml(connectionAlias)} • ` : ''}${database ? `Database: ${escapeHtml(database)} • ` : ''}${tables.length} table${tables.length === 1 ? '' : 's'}
+          </div>
+        </div>
+        <div class="list-view">
+          <div class="list-header">
+            Tables
+          </div>
+      `;
+
+      tables.forEach(table => {
+        html += `
+          <div class="list-item" onclick="selectTable('${escapeHtmlAttr(table)}')">
+            <svg class="list-item-icon" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+              <path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2zm15 2h-4v3h4V4zm0 4h-4v3h4V8zm0 4h-4v3h3a1 1 0 0 0 1-1v-2zm-5 3v-3H6v3h4zm-5 0v-3H1v2a1 1 0 0 0 1 1h3zm-4-4h4V8H1v3zm0-4h4V4H1v3zm5-3v3h4V4H6zm4 4H6v3h4V8z"/>
+            </svg>
+            <span class="list-item-name">${escapeHtml(table)}</span>
+          </div>
+        `;
+      });
+
+      html += `</div>`;
+      document.getElementById('content').innerHTML = html;
+    }
+
+    function selectDatabase(database) {
+      vscode.postMessage({
+        type: 'selectDatabase',
+        database: database
+      });
+    }
+
+    function selectTable(table) {
+      vscode.postMessage({
+        type: 'selectTable',
+        table: table
+      });
     }
 
     function escapeHtml(text) {
+      if (text === null || text === undefined) {
+        return '';
+      }
       const div = document.createElement('div');
-      div.textContent = text;
+      div.textContent = String(text);
       return div.innerHTML;
     }
 
-    // Tooltip logic
+    // Escape HTML attribute value (handles quotes and special chars)
+    function escapeHtmlAttr(text) {
+      if (text === null || text === undefined) {
+        return '';
+      }
+      const str = String(text);
+      return str
+        .replaceAll('&', '&amp;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+    }
+
+    // Side panel logic for cell details
     function setupCellTooltips() {
-      // Create tooltip once
-      let tooltip = document.getElementById('cell-tooltip');
-      if (!tooltip) {
-        tooltip = document.createElement('div');
-        tooltip.id = 'cell-tooltip';
-        tooltip.className = 'cell-tooltip';
-        tooltip.innerHTML = `
-          <div class="tooltip-content"></div>
-          <div class="tooltip-actions">
-            <button id="copy-cell-btn">Copy</button>
+      // Create side panel once
+      let sidePanel = document.getElementById('cell-side-panel');
+      let overlay = document.getElementById('cell-side-panel-overlay');
+
+      if (!sidePanel) {
+        sidePanel = document.createElement('div');
+        sidePanel.id = 'cell-side-panel';
+        sidePanel.className = 'cell-side-panel';
+        sidePanel.innerHTML = `
+          <div class="cell-side-panel-header">
+            <button class="cell-side-panel-close" id="close-side-panel" title="Close">×</button>
+          </div>
+          <div class="cell-side-panel-content" id="side-panel-content"></div>
+          <div class="cell-side-panel-actions">
+            <button id="copy-cell-btn" title="Copy">
+              <svg class="copy-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+                <path d="M11 0H5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V1a1 1 0 0 0-1-1zm0 1v11H5V1h6z"/>
+              </svg>
+              Copy
+            </button>
           </div>
         `;
-        document.body.appendChild(tooltip);
+        document.body.appendChild(sidePanel);
       }
 
-      const tooltipContent = tooltip.querySelector('.tooltip-content');
-      const copyBtn = tooltip.querySelector('#copy-cell-btn');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'cell-side-panel-overlay';
+        overlay.className = 'cell-side-panel-overlay';
+        document.body.appendChild(overlay);
+      }
 
-      let hideTimer;
-      const hideTooltip = () => {
-        hideTimer = setTimeout(() => {
-          tooltip.style.display = 'none';
-        }, 150);
+      const panelContent = sidePanel.querySelector('#side-panel-content');
+      const copyBtn = sidePanel.querySelector('#copy-cell-btn');
+      const closeBtn = sidePanel.querySelector('#close-side-panel');
+
+      const closePanel = () => {
+        sidePanel.classList.remove('open');
+        overlay.classList.remove('show');
       };
 
-      const showTooltip = () => {
-        if (hideTimer) {
-          clearTimeout(hideTimer);
-          hideTimer = undefined;
-        }
-        tooltip.style.display = 'block';
+      const openPanel = (value) => {
+        panelContent.textContent = value;
+        sidePanel.classList.add('open');
+        overlay.classList.add('show');
+
+        // Set up copy button
+        copyBtn.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(value);
+            // Visual feedback
+            const originalText = copyBtn.innerHTML;
+            copyBtn.innerHTML = `
+              <svg class="copy-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z"/>
+              </svg>
+              Copied
+            `;
+            setTimeout(() => {
+              copyBtn.innerHTML = originalText;
+            }, 2000);
+          } catch {
+            // Fallback
+            const textarea = document.createElement('textarea');
+            textarea.value = value;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            textarea.remove();
+          }
+        };
       };
 
-      // Keep tooltip open when hovering on it
-      tooltip.addEventListener('mouseenter', () => {
-        if (hideTimer) {
-          clearTimeout(hideTimer);
-          hideTimer = undefined;
+      // Close button
+      closeBtn.onclick = closePanel;
+
+      // Close when clicking overlay
+      overlay.onclick = closePanel;
+
+      // Close on Escape key
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && sidePanel.classList.contains('open')) {
+          closePanel();
         }
       });
-      tooltip.addEventListener('mouseleave', hideTooltip);
 
+      // Set up click handlers for cells
       document.querySelectorAll('.result-cell').forEach(td => {
-        td.addEventListener('mouseenter', (e) => {
+        td.addEventListener('click', (e) => {
+          e.stopPropagation();
           const value = td.dataset.value || '';
           if (!value) {
             return;
           }
-          tooltipContent.textContent = value;
-          copyBtn.onclick = async () => {
-            try {
-              await navigator.clipboard.writeText(value);
-            } catch {
-              // Fallback
-              const textarea = document.createElement('textarea');
-              textarea.value = value;
-              document.body.appendChild(textarea);
-              textarea.select();
-              document.execCommand('copy');
-              textarea.remove();
-            }
-          };
-
-          const rect = td.getBoundingClientRect();
-          const top = rect.bottom + 6;
-          const left = Math.min(
-            rect.left,
-            window.innerWidth - tooltip.offsetWidth - 16
-          );
-          tooltip.style.top = `${top}px`;
-          tooltip.style.left = `${left}px`;
-          showTooltip();
+          openPanel(value);
         });
-
-        td.addEventListener('mouseleave', hideTooltip);
       });
     }
   </script>

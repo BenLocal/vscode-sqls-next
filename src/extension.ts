@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { SqlsClient } from "./lspClient";
 import { InitializeOptions } from "./lspTypes";
 import { ResultPanel } from "./resultPanel";
-import { addDatabaseCommand } from "./database";
+import { registerDatabaseCommands } from "./database";
 import { OutputLogger } from "./outputLogger";
 import { SqlsTreeView } from "./treeView";
 
@@ -12,12 +12,14 @@ const SqlsResultPanelViewType = "sqlsResultPanel";
 let lspClient: SqlsClient | undefined;
 let resultPanel: ResultPanel | undefined;
 let treeView: SqlsTreeView | undefined;
+let statusBarItem: vscode.StatusBarItem | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
   OutputLogger.initialize(context, clientTraceName);
+  createStatusBarItem(context);
   createResultPanel(context);
   createLspClient(context);
-  addDatabaseCommand(context, lspClient!);
+  registerDatabaseCommands(context, lspClient!, resultPanel!);
   treeView = new SqlsTreeView(context, lspClient!);
 
   let initializationOptions: InitializeOptions = {
@@ -68,4 +70,26 @@ async function createLspClient(context: vscode.ExtensionContext) {
     restartLanguageServer
   );
   context.subscriptions.push(restartLanguageServerCommand);
+}
+
+async function createStatusBarItem(context: vscode.ExtensionContext) {
+  statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+  statusBarItem.text = "Sqls";
+  statusBarItem.tooltip = "Sqls";
+  statusBarItem.command = "sqls-next.showLog";
+
+  const showLogCommand = vscode.commands.registerCommand(
+    "sqls-next.showLog",
+    () => {
+      const outputChannel = lspClient?.getOutputChannel();
+      if (outputChannel) {
+        outputChannel.show();
+      } else {
+        OutputLogger.show();
+      }
+    }
+  );
+
+  context.subscriptions.push(showLogCommand, statusBarItem);
+  statusBarItem.show();
 }

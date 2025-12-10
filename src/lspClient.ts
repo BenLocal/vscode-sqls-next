@@ -4,7 +4,6 @@ import * as vscode from "vscode";
 
 import * as lsp from "vscode-languageclient/node";
 import {
-  ConnectionConfig,
   DidChangeConfigurationParams,
   InitializeOptions,
 } from "./lspTypes";
@@ -15,6 +14,7 @@ import { OutputLogger } from "./outputLogger";
 import { ConnectionConfigManager } from "./database";
 import { SqlsFormattingMiddleware } from "./middleware/formatting";
 import { getBasePath } from "./util/platform";
+import { parseResultSmart } from "./resultParser";
 
 export class SqlsClient {
   private readonly _context: vscode.ExtensionContext;
@@ -141,6 +141,10 @@ export class SqlsClient {
       serverOptions,
       clientOptions
     );
+  }
+
+  public getOutputChannel(): vscode.OutputChannel | undefined {
+    return this._client?.outputChannel;
   }
 
   private createMiddleware(): lsp.Middleware {
@@ -370,8 +374,8 @@ export class SqlsClient {
     return [];
   }
 
-  async getCurrentTables(scheme: string): Promise<string[]> {
-    const result = await this.executeServerCommand("showTables", [scheme]);
+  async getCurrentTables(scheme: string | undefined): Promise<string[]> {
+    const result = await this.executeServerCommand("showTables", scheme ? [scheme] : undefined);
     if (typeof result === "string") {
       return result
         .split("\n")
@@ -384,6 +388,28 @@ export class SqlsClient {
         .filter((table) => table.length > 0);
     }
     return [];
+  }
+
+  async executeQuery(file: vscode.Uri, range: vscode.Range, cursorPointer: boolean = false) {
+    const filePath = file.toString();
+    await this._resultPanel?.displayLoading();
+    const lspRange: lsp.Range = {
+      start: {
+        line: range.start.line,
+        character: range.start.character
+      } as lsp.Position,
+      end: {
+        line: range.end.line,
+        character: range.end.character
+      } as lsp.Position
+    };
+    const result = await this.executeServerCommand("executeQuery", [
+      filePath,
+      "-show-json",
+      lspRange,
+      cursorPointer
+    ]);
+    await this._resultPanel?.displayResults(parseResultSmart(result));
   }
 
   /**

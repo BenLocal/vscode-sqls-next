@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { SqlsClient } from "./lspClient";
 import { DatabaseDriver } from "./lspTypes";
+import { ResultPanel } from "./resultPanel";
 
 export interface DatabaseDriverInfo {
   label: string;
@@ -31,9 +32,10 @@ export const DatabaseDriverMap: Record<DatabaseDriver, DatabaseDriverInfo> = {
   },
 };
 
-export function addDatabaseCommand(
+export function registerDatabaseCommands(
   context: vscode.ExtensionContext,
-  client: SqlsClient
+  client: SqlsClient,
+  resultPanel: ResultPanel
 ) {
   const getConnectionConfigOptions = async (
     context: vscode.ExtensionContext
@@ -189,6 +191,77 @@ export function addDatabaseCommand(
     }
   );
   context.subscriptions.push(clearConnectionConfigCommand);
+  const showDatabasesCommand = vscode.commands.registerCommand('sqls-next.showDatabases', async () => {
+    const databases = await client.getCurrentDatabases();
+    await resultPanel.displayDatabases(databases);
+  });
+  context.subscriptions.push(showDatabasesCommand);
+
+  const showTablesCommand = vscode.commands.registerCommand('sqls-next.showTables', async () => {
+    const databases = await client.getCurrentDatabases();
+    const options = [
+      { label: '$(circle-slash) None', value: null, description: 'Show tables without database filter' },
+      ...databases.map(db => ({ label: db, value: db }))
+    ];
+    const scheme = await vscode.window.showQuickPick(options, {
+      placeHolder: "Select a database to show tables",
+    });
+
+    if (!scheme) {
+      return; // User cancelled
+    }
+
+    const p = scheme.value ?? undefined;
+    const tables = await client.getCurrentTables(p);
+    await resultPanel.displayTables(tables);
+  });
+  context.subscriptions.push(showTablesCommand);
+
+  const exportToCsvCommand = vscode.commands.registerCommand(
+    "sqls-next.exportToCsv",
+    () => {
+      resultPanel?.exportToCsv();
+    }
+  );
+  context.subscriptions.push(exportToCsvCommand);
+
+  const executeQueryCommand = vscode.commands.registerCommand('sqls-next.executeQuery', async () => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      vscode.window.showWarningMessage("No active editor found");
+      return;
+    }
+
+    const document = editor.document;
+    const selection = editor.selection;
+    // Get cursor position (mouse pointer position)
+    const cursorPosition = selection.active;
+    const cursorPointer = selection?.isEmpty ?? true;
+    const range = cursorPointer ? new vscode.Range(
+      cursorPosition.line,
+      0,
+      cursorPosition.line,
+      0
+    ) : new vscode.Range(
+      selection.start.line,
+      selection.start.character,
+      selection.end.line,
+      selection.end.character
+    );
+
+    // Execute the query
+    try {
+      await client.executeQuery(
+        document.uri,
+        range,
+        cursorPointer
+      );
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      await resultPanel.displayError(errorMsg);
+    }
+  });
+  context.subscriptions.push(executeQueryCommand);
 }
 
 export interface ConnectionConfig {

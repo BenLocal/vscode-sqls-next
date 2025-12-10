@@ -11,10 +11,6 @@ export class SqlsTreeView {
     this._context = context;
     this._lspClient = lspClient;
     this._treeView = this._initTreeView();
-    vscode.commands.registerCommand('sqls-next.showDatabases', async () => {
-      const databases = this._lspClient.getCurrentDatabases();
-      console.log(databases);
-    });
     this._context.subscriptions.push(this._treeView);
   }
 

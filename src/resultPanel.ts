@@ -16,6 +16,8 @@ export class ResultPanel implements vscode.WebviewViewProvider {
   private readonly _extensionUri: vscode.Uri;
   private readonly _disposables: vscode.Disposable[] = [];
   private _template?: string;
+  private _currentData?: QueryResult;
+  private readonly _contextKey = "sqlsResultPanel.hasQueryData";
 
   constructor(extensionUri: vscode.Uri, viewType: string) {
     this._extensionUri = extensionUri;
@@ -46,6 +48,9 @@ export class ResultPanel implements vscode.WebviewViewProvider {
     // Set the webview's initial html content
     webviewView.webview.html = this._template || "";
 
+    // Initialize context to false
+    this._setHasQueryDataContext(false);
+
     // Handle messages from the webview
     webviewView.webview.onDidReceiveMessage(
       (message) => {
@@ -56,6 +61,12 @@ export class ResultPanel implements vscode.WebviewViewProvider {
           case "exportCsv":
             this._exportToCsv(message.data);
             break;
+          case "selectDatabase":
+            // Handle database selection if needed
+            break;
+          case "selectTable":
+            // Handle table selection if needed
+            break;
         }
       },
       null,
@@ -65,6 +76,10 @@ export class ResultPanel implements vscode.WebviewViewProvider {
 
   public async displayResults(results: QueryResult) {
     await this.show();
+    this._currentData = results;
+    // Only show export button if there are rows to export
+    const hasData = results?.rows && results.rows.length > 0;
+    this._setHasQueryDataContext(hasData);
     if (this._view) {
       this._view.webview.postMessage({
         type: "displayResults",
@@ -75,6 +90,7 @@ export class ResultPanel implements vscode.WebviewViewProvider {
 
   public async displayError(error: string) {
     await this.show();
+    this._setHasQueryDataContext(false);
     if (this._view) {
       this._view.webview.postMessage({
         type: "displayError",
@@ -85,10 +101,47 @@ export class ResultPanel implements vscode.WebviewViewProvider {
 
   public async displayLoading(message: string = "Executing query...") {
     await this.show();
+    this._setHasQueryDataContext(false);
     if (this._view) {
       this._view.webview.postMessage({
         type: "displayLoading",
         message: message,
+      });
+    }
+  }
+
+  public async displayDatabases(
+    databases: string[],
+    connectionAlias?: string
+  ) {
+    await this.show();
+    this._setHasQueryDataContext(false);
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: "displayDatabases",
+        data: {
+          databases,
+          connectionAlias,
+        },
+      });
+    }
+  }
+
+  public async displayTables(
+    tables: string[],
+    database?: string,
+    connectionAlias?: string
+  ) {
+    await this.show();
+    this._setHasQueryDataContext(false);
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: "displayTables",
+        data: {
+          tables,
+          database,
+          connectionAlias,
+        },
       });
     }
   }
@@ -102,6 +155,15 @@ export class ResultPanel implements vscode.WebviewViewProvider {
         disposable.dispose();
       }
     }
+  }
+
+  public exportToCsv() {
+    const data = this._currentData;
+    if (!data) {
+      vscode.window.showWarningMessage("No data to export");
+      return;
+    }
+    this._exportToCsv(data);
   }
 
   private _exportToCsv(data: QueryResult) {
@@ -132,14 +194,15 @@ export class ResultPanel implements vscode.WebviewViewProvider {
       .join("\n");
 
     const csv = `${headers}\n${rows}`;
-
+    const name = "query_results_" + Date.now() + ".csv";
+    const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     // Save to file
     vscode.window
       .showSaveDialog({
         filters: {
           CSV: ["csv"],
         },
-        defaultUri: vscode.Uri.file("query_results.csv"),
+        defaultUri: workspace ? vscode.Uri.file(path.join(workspace, name)) : undefined,
       })
       .then((uri) => {
         if (uri) {
@@ -149,6 +212,10 @@ export class ResultPanel implements vscode.WebviewViewProvider {
           );
         }
       });
+  }
+
+  private _setHasQueryDataContext(value: boolean) {
+    vscode.commands.executeCommand("setContext", this._contextKey, value);
   }
 
   private _getHtmlForWebview(_webview: vscode.Webview) {

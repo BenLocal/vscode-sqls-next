@@ -36,6 +36,15 @@
         }
       ]
     },
+    "menus": {
+      "view/title": [
+        {
+          "command": "sqls-next.exportToCsv",
+          "when": "view == sqlsResultPanel && sqlsResultPanel.hasQueryData",
+          "group": "navigation"
+        }
+      ]
+    },
     "viewsContainers": {
       "panel": [
         {
@@ -83,6 +92,19 @@
       {
         "command": "sqls-next.showDatabases",
         "title": "Sqls-Next: Show Databases"
+      },
+      {
+        "command": "sqls-next.showTables",
+        "title": "Sqls-Next: Show Tables"
+      },
+      {
+        "command": "sqls-next.exportToCsv",
+        "title": "Export to CSV",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "sqls-next.showLog",
+        "title": "Sqls-Next: Show Log"
       }
     ],
     "keybindings": [

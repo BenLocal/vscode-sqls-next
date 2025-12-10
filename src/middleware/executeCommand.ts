@@ -5,8 +5,7 @@ import { parseResultSmart } from "../resultParser";
 import { OutputLogger } from "../outputLogger";
 
 export class SqlsExecuteCommandMiddleware
-  implements lsp.ExecuteCommandMiddleware
-{
+  implements lsp.ExecuteCommandMiddleware {
   private readonly _context: vscode.ExtensionContext;
   private readonly _resultPanel: ResultPanel | undefined;
 
@@ -35,7 +34,9 @@ export class SqlsExecuteCommandMiddleware
     }
 
     if (command === "executeQuery") {
-      args[1] = "-show-json";
+      if (args.length > 1 && (!args[1] || args[1] === "")) {
+        args[1] = "-show-json";
+      }
       await this._resultPanel?.displayLoading();
     }
 
