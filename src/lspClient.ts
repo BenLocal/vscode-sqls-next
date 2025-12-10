@@ -3,10 +3,7 @@ import * as fs from "node:fs";
 import * as vscode from "vscode";
 
 import * as lsp from "vscode-languageclient/node";
-import {
-  DidChangeConfigurationParams,
-  InitializeOptions,
-} from "./lspTypes";
+import { DidChangeConfigurationParams, InitializeOptions } from "./lspTypes";
 import { ResultPanel } from "./resultPanel";
 import { SqlsExecuteCommandMiddleware } from "./middleware/executeCommand";
 import { MessageInterceptor, createMessageFilter } from "./messageInterceptor";
@@ -375,7 +372,10 @@ export class SqlsClient {
   }
 
   async getCurrentTables(scheme: string | undefined): Promise<string[]> {
-    const result = await this.executeServerCommand("showTables", scheme ? [scheme] : undefined);
+    const result = await this.executeServerCommand(
+      "showTables",
+      scheme ? [scheme] : undefined
+    );
     if (typeof result === "string") {
       return result
         .split("\n")
@@ -390,24 +390,28 @@ export class SqlsClient {
     return [];
   }
 
-  async executeQuery(file: vscode.Uri, range: vscode.Range, cursorPointer: boolean = false) {
+  async executeQuery(
+    file: vscode.Uri,
+    range: vscode.Range,
+    cursorPointer: boolean = false
+  ) {
     const filePath = file.toString();
     await this._resultPanel?.displayLoading();
     const lspRange: lsp.Range = {
       start: {
         line: range.start.line,
-        character: range.start.character
+        character: range.start.character,
       } as lsp.Position,
       end: {
         line: range.end.line,
-        character: range.end.character
-      } as lsp.Position
+        character: range.end.character,
+      } as lsp.Position,
     };
     const result = await this.executeServerCommand("executeQuery", [
       filePath,
       "-show-json",
       lspRange,
-      cursorPointer
+      cursorPointer,
     ]);
     await this._resultPanel?.displayResults(parseResultSmart(result));
   }

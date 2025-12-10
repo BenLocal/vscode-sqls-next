@@ -45,6 +45,27 @@
       gap: 8px;
     }
 
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .filter-input {
+      padding: 6px 8px;
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 4px;
+      background-color: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      min-width: 180px;
+    }
+
+    .filter-input:focus {
+      outline: 1px solid var(--vscode-focusBorder);
+      border-color: var(--vscode-focusBorder);
+    }
+
     button {
       background-color: var(--vscode-button-background);
       color: var(--vscode-button-foreground);
@@ -396,32 +417,73 @@
                 `;
         return;
       }
+      globalThis.currentResultsData = data;
+      renderResultsView(data, '');
+    }
 
+    function displayDatabases(data) {
+      const { databases, connectionAlias } = data || {};
+      if (!databases || databases.length === 0) {
+        document.getElementById('content').innerHTML = `
+          <div class="empty">No databases found</div>
+        `;
+        return;
+      }
+
+      globalThis.currentDatabases = { databases, connectionAlias };
+      renderDatabaseList(databases, connectionAlias, '');
+    }
+
+    function displayTables(data) {
+      const { tables, database, connectionAlias } = data || {};
+      if (!tables || tables.length === 0) {
+        document.getElementById('content').innerHTML = `
+          <div class="empty">No tables found${database ? ` in database: ${escapeHtml(database)}` : ''}</div>
+        `;
+        return;
+      }
+
+      globalThis.currentTables = { tables, database, connectionAlias };
+      renderTableList(tables, database, connectionAlias, '');
+    }
+
+    function renderResultsView(data, filterText, cursorPos) {
       const rowCount = data.rows.length;
       const columnCount = data.columns.length;
+      const normalized = (filterText || '').trim().toLowerCase();
+      const filteredRows = normalized
+        ? data.rows.filter(row =>
+          data.columns.some(col => {
+            const value = row[col.name];
+            return value !== null && value !== undefined &&
+              String(value).toLowerCase().includes(normalized);
+          })
+        )
+        : data.rows;
 
       let html = `
-                <div class="toolbar">
-                    <div class="info">
-                        ${rowCount} row${rowCount === 1 ? '' : 's'} × ${columnCount} column${columnCount === 1 ? '' : 's'}
-                    </div>
-                </div>
-                <div class="table-container"><table><thead><tr>
-            `;
+        <div class="toolbar">
+          <div class="info">
+            ${filteredRows.length} / ${rowCount} row${rowCount === 1 ? '' : 's'} × ${columnCount} column${columnCount === 1 ? '' : 's'}
+          </div>
+          <div class="filter-group">
+            <input class="filter-input" id="result-filter" type="text" placeholder="Filter rows" value="${escapeHtmlAttr(filterText)}" />
+          </div>
+        </div>
+        <div class="table-container"><table><thead><tr>
+      `;
 
-      // Add headers
       data.columns.forEach(col => {
         html += `<th>${escapeHtml(col.name)}</th>`;
       });
 
       html += `
-              </tr>
-          </thead>
-          <tbody>
-            `;
+          </tr>
+      </thead>
+      <tbody>
+        `;
 
-      // Add rows
-      data.rows.forEach(row => {
+      filteredRows.forEach(row => {
         html += '<tr>';
         data.columns.forEach(col => {
           const value = row[col.name];
@@ -437,26 +499,35 @@
 
       html += `</tbody></table></div>`;
       document.getElementById('content').innerHTML = html;
-      // Store data for export
-      globalThis.currentData = data;
+      globalThis.currentData = { ...data, rows: filteredRows };
 
-      // Attach tooltip with copy action
+      const filterInput = document.getElementById('result-filter');
+      if (filterInput) {
+        if (typeof cursorPos === 'number') {
+          filterInput.focus();
+          filterInput.setSelectionRange(cursorPos, cursorPos);
+        }
+        filterInput.addEventListener('input', (e) => {
+          renderResultsView(data, e.target.value, e.target.selectionStart || 0);
+        });
+      }
+
       setupCellTooltips();
     }
 
-    function displayDatabases(data) {
-      const { databases, connectionAlias } = data || {};
-      if (!databases || databases.length === 0) {
-        document.getElementById('content').innerHTML = `
-          <div class="empty">No databases found</div>
-        `;
-        return;
-      }
+    function renderDatabaseList(databases, connectionAlias, filterText, cursorPos) {
+      const normalized = (filterText || '').trim().toLowerCase();
+      const filtered = normalized
+        ? databases.filter(db => db.toLowerCase().includes(normalized))
+        : databases;
 
       let html = `
         <div class="toolbar">
           <div class="info">
-            ${connectionAlias ? `Connection: ${escapeHtml(connectionAlias)} • ` : ''}${databases.length} database${databases.length === 1 ? '' : 's'}
+            ${connectionAlias ? `Connection: ${escapeHtml(connectionAlias)} • ` : ''}${filtered.length} / ${databases.length} database${databases.length === 1 ? '' : 's'}
+          </div>
+          <div class="filter-group">
+            <input class="filter-input" id="database-filter" type="text" placeholder="Filter databases" value="${escapeHtmlAttr(filterText)}" />
           </div>
         </div>
         <div class="list-view">
@@ -471,7 +542,7 @@
           </div>
       `;
 
-      databases.forEach(db => {
+      filtered.forEach(db => {
         html += `
           <div class="list-item" onclick="selectDatabase('${escapeHtmlAttr(db)}')">
             <svg class="list-item-icon" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -484,21 +555,32 @@
 
       html += `</div>`;
       document.getElementById('content').innerHTML = html;
+
+      const filterInput = document.getElementById('database-filter');
+      if (filterInput) {
+        if (typeof cursorPos === 'number') {
+          filterInput.focus();
+          filterInput.setSelectionRange(cursorPos, cursorPos);
+        }
+        filterInput.addEventListener('input', (e) => {
+          renderDatabaseList(databases, connectionAlias, e.target.value, e.target.selectionStart || 0);
+        });
+      }
     }
 
-    function displayTables(data) {
-      const { tables, database, connectionAlias } = data || {};
-      if (!tables || tables.length === 0) {
-        document.getElementById('content').innerHTML = `
-          <div class="empty">No tables found${database ? ` in database: ${escapeHtml(database)}` : ''}</div>
-        `;
-        return;
-      }
+    function renderTableList(tables, database, connectionAlias, filterText, cursorPos) {
+      const normalized = (filterText || '').trim().toLowerCase();
+      const filtered = normalized
+        ? tables.filter(table => table.toLowerCase().includes(normalized))
+        : tables;
 
       let html = `
         <div class="toolbar">
           <div class="info">
-            ${connectionAlias ? `Connection: ${escapeHtml(connectionAlias)} • ` : ''}${database ? `Database: ${escapeHtml(database)} • ` : ''}${tables.length} table${tables.length === 1 ? '' : 's'}
+            ${connectionAlias ? `Connection: ${escapeHtml(connectionAlias)} • ` : ''}${database ? `Database: ${escapeHtml(database)} • ` : ''}${filtered.length} / ${tables.length} table${tables.length === 1 ? '' : 's'}
+          </div>
+          <div class="filter-group">
+            <input class="filter-input" id="table-filter" type="text" placeholder="Filter tables" value="${escapeHtmlAttr(filterText)}" />
           </div>
         </div>
         <div class="list-view">
@@ -507,7 +589,7 @@
           </div>
       `;
 
-      tables.forEach(table => {
+      filtered.forEach(table => {
         html += `
           <div class="list-item" onclick="selectTable('${escapeHtmlAttr(table)}')">
             <svg class="list-item-icon" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -520,6 +602,17 @@
 
       html += `</div>`;
       document.getElementById('content').innerHTML = html;
+
+      const filterInput = document.getElementById('table-filter');
+      if (filterInput) {
+        if (typeof cursorPos === 'number') {
+          filterInput.focus();
+          filterInput.setSelectionRange(cursorPos, cursorPos);
+        }
+        filterInput.addEventListener('input', (e) => {
+          renderTableList(tables, database, connectionAlias, e.target.value, e.target.selectionStart || 0);
+        });
+      }
     }
 
     function selectDatabase(database) {

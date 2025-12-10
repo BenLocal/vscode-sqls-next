@@ -3,7 +3,7 @@ export function getBasePath(): string {
 
   let os = "linux";
   if (process.platform === "win32") {
-    os = "win";
+    os = "windows";
   } else if (process.platform === "darwin") {
     os = "darwin";
   }

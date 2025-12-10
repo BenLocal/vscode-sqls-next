@@ -1,71 +1,20 @@
-# sqls-next README
+# vscode-sqls-next
 
-This is the README for your extension "sqls-next". After writing up a brief description, we recommend including the following sections.
+轻量的 VS Code SQL 客户端扩展，基于 sqls 语言服务器，提供结果面板、数据库/表浏览与导出。
 
-## Features
+## 功能
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- 执行 SQL 并在结果面板查看结果（支持行内过滤、单元格点击展开及复制）。
+- 浏览数据库与表列表，支持输入过滤快速定位。
+- 导出查询结果为 CSV。
 
-For example if there is an image subfolder under your extension project workspace:
+## 使用
 
-\!\[feature X\]\(images/feature-x.png\)
+1. 安装扩展并确保本地可用的 `sqls`（或使用项目脚本构建内置二进制）。
+2. 打开数据库连接，执行 SQL，结果面板会自动显示数据。
+3. 在数据库/表列表或结果表格顶部输入关键字即可过滤显示。
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## 开发
 
-## Requirements
-
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+- 本地构建：`npm install && npm run package`
+- 打包 VSIX：`npm run vsix`

@@ -28,6 +28,13 @@
     "onLanguage:sql",
     "workspaceContains:*.sql"
   ],
+  "files": [
+    "dist/**/*",
+    "server/**/*",
+    "README.md",
+    "LICENSE.md",
+    "icon.png"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "views": {
@@ -137,7 +144,8 @@
     "lint": "eslint src",
     "test": "vscode-test",
     "build:sqls": "ts-node scripts/build_sqls.ts",
-    "release:sqls": "ts-node scripts/build_sqls.ts --release"
+    "release:sqls": "ts-node scripts/build_sqls.ts --release",
+    "vsix": "npm install -g vsce && vsce package"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
